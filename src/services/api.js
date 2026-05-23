@@ -16,6 +16,21 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+
+  // Inject admin_selected_restaurant for super admin cross-hotel actions
+  const adminSelectedRestaurant = localStorage.getItem('admin_selected_restaurant');
+  if (adminSelectedRestaurant) {
+    if (config.method === 'get' || config.method === 'delete') {
+      config.params = { ...config.params, restaurant_id: adminSelectedRestaurant };
+    } else if (config.method === 'post' || config.method === 'patch' || config.method === 'put') {
+      if (config.data && typeof config.data === 'object' && !(config.data instanceof FormData)) {
+        config.data.restaurant_id = parseInt(adminSelectedRestaurant);
+      } else if (config.data instanceof FormData) {
+        config.data.append('restaurant_id', adminSelectedRestaurant);
+      }
+    }
+  }
+
   return config;
 });
 

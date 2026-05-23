@@ -27,7 +27,7 @@ function App() {
             />
 
             <Route
-              path="/manager-dashboard"
+              path="/manager-dashboard/:hotelId?"
               element={
                 <ProtectedRoute>
                   <HotelManagerDashboard />

@@ -375,7 +375,11 @@ const AdminDashboard = () => {
                   </thead>
                   <tbody>
                     {topHotels.map((hotel, idx) => (
-                      <tr key={idx} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                      <tr 
+                        key={idx} 
+                        style={{ borderBottom: '1px solid var(--border-color)', cursor: 'pointer' }}
+                        onClick={() => navigate(`/manager-dashboard/${hotel.id}`)}
+                      >
                         <td style={{ padding: '16px 0', display: 'flex', alignItems: 'center', gap: '12px' }}>
                           <div
                             style={{
@@ -585,6 +589,7 @@ const AdminDashboard = () => {
                   {filteredHotels.map((hotel) => (
                     <div
                       key={hotel.id}
+                      onClick={() => navigate(`/manager-dashboard/${hotel.id}`)}
                       style={{
                         background: '#FFFFFF',
                         borderRadius: '12px',

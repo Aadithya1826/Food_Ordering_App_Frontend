@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   LogOut,
   Menu,
@@ -31,8 +31,21 @@ import VoiceWidget from '../components/VoiceWidget';
 const HotelManagerDashboard = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const { hotelId } = useParams();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activePage, setActivePage] = useState('dashboard');
+
+  if (hotelId) {
+    localStorage.setItem('admin_selected_restaurant', hotelId);
+  } else {
+    localStorage.removeItem('admin_selected_restaurant');
+  }
+
+  useEffect(() => {
+    return () => {
+      localStorage.removeItem('admin_selected_restaurant');
+    };
+  }, []);
 
   // Data states
   const [orders, setOrders] = useState([]);
