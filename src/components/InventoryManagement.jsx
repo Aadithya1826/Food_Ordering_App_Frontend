@@ -22,7 +22,7 @@ const InventoryManagement = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
-  const [newItem, setNewItem] = useState({ name: '', quantity: '', unit: '' });
+  const [newItem, setNewItem] = useState({ name: '', open_stock: 0, purchase: 0, issue: 0, unit: 'units' });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -56,8 +56,8 @@ const InventoryManagement = () => {
 
   const handleAddItem = async (e) => {
     e.preventDefault();
-    if (!newItem.name || !newItem.quantity || !newItem.unit) {
-      setError('All fields are required.');
+    if (!newItem.name) {
+      setError('Name is required.');
       return;
     }
 
@@ -66,11 +66,15 @@ const InventoryManagement = () => {
       setError('');
       await inventoryService.createItem({
         name: newItem.name,
-        quantity: parseFloat(newItem.quantity),
-        unit: newItem.unit,
+        open_stock: parseFloat(newItem.open_stock) || 0,
+        purchase: parseFloat(newItem.purchase) || 0,
+        total: (parseFloat(newItem.open_stock) || 0) + (parseFloat(newItem.purchase) || 0),
+        issue: parseFloat(newItem.issue) || 0,
+        balance: ((parseFloat(newItem.open_stock) || 0) + (parseFloat(newItem.purchase) || 0)) - (parseFloat(newItem.issue) || 0),
+        unit: newItem.unit || 'units',
       });
       setShowAddModal(false);
-      setNewItem({ name: '', quantity: '', unit: '' });
+      setNewItem({ name: '', open_stock: 0, purchase: 0, issue: 0, unit: 'units' });
       fetchInventory();
     } catch (err) {
       console.error('Error adding item', err);
@@ -82,8 +86,8 @@ const InventoryManagement = () => {
 
   const handleEditItem = async (e) => {
     e.preventDefault();
-    if (!editingItem.name || editingItem.quantity === '' || !editingItem.unit) {
-      setError('All fields are required.');
+    if (!editingItem.name) {
+      setError('Name is required.');
       return;
     }
 
@@ -92,8 +96,12 @@ const InventoryManagement = () => {
       setError('');
       await inventoryService.updateInventory(editingItem.id, {
         name: editingItem.name,
-        quantity: parseFloat(editingItem.quantity),
-        unit: editingItem.unit,
+        open_stock: parseFloat(editingItem.open_stock) || 0,
+        purchase: parseFloat(editingItem.purchase) || 0,
+        total: (parseFloat(editingItem.open_stock) || 0) + (parseFloat(editingItem.purchase) || 0),
+        issue: parseFloat(editingItem.issue) || 0,
+        balance: ((parseFloat(editingItem.open_stock) || 0) + (parseFloat(editingItem.purchase) || 0)) - (parseFloat(editingItem.issue) || 0),
+        unit: editingItem.unit || 'units',
       });
       setShowEditModal(false);
       setEditingItem(null);
@@ -180,8 +188,8 @@ const InventoryManagement = () => {
   );
 
   const lowStockThreshold = 5;
-  const lowStockItems = inventory.filter(item => item.quantity < lowStockThreshold);
-  const inStockItems = inventory.filter(item => item.quantity >= lowStockThreshold);
+  const lowStockItems = inventory.filter(item => item.balance < lowStockThreshold);
+  const inStockItems = inventory.filter(item => item.balance >= lowStockThreshold);
 
   // Time formatter for "last restocked"
   const formatLastRestocked = (dateString) => {
@@ -310,7 +318,11 @@ const InventoryManagement = () => {
           <thead style={{ borderBottom: '1px solid #eaeaea' }}>
             <tr>
               <th style={{ padding: '16px 24px', textAlign: 'left', fontSize: '13px', color: 'var(--text-secondary)', fontWeight: '600' }}>Item</th>
-              <th style={{ padding: '16px 24px', textAlign: 'left', fontSize: '13px', color: 'var(--text-secondary)', fontWeight: '600' }}>Quantity</th>
+              <th style={{ padding: '16px 24px', textAlign: 'left', fontSize: '13px', color: 'var(--text-secondary)', fontWeight: '600' }}>Open</th>
+              <th style={{ padding: '16px 24px', textAlign: 'left', fontSize: '13px', color: 'var(--text-secondary)', fontWeight: '600' }}>Purchase</th>
+              <th style={{ padding: '16px 24px', textAlign: 'left', fontSize: '13px', color: 'var(--text-secondary)', fontWeight: '600' }}>Total</th>
+              <th style={{ padding: '16px 24px', textAlign: 'left', fontSize: '13px', color: 'var(--text-secondary)', fontWeight: '600' }}>Issue</th>
+              <th style={{ padding: '16px 24px', textAlign: 'left', fontSize: '13px', color: 'var(--text-secondary)', fontWeight: '600' }}>Balance</th>
               <th style={{ padding: '16px 24px', textAlign: 'left', fontSize: '13px', color: 'var(--text-secondary)', fontWeight: '600' }}>Unit</th>
               <th style={{ padding: '16px 24px', textAlign: 'left', fontSize: '13px', color: 'var(--text-secondary)', fontWeight: '600' }}>Last Restocked</th>
               <th style={{ padding: '16px 24px', textAlign: 'left', fontSize: '13px', color: 'var(--text-secondary)', fontWeight: '600' }}>Status</th>
@@ -328,7 +340,7 @@ const InventoryManagement = () => {
               </tr>
             ) : (
               filteredInventory.map((item) => {
-                const isLowStock = item.quantity < lowStockThreshold;
+                const isLowStock = item.balance < lowStockThreshold;
                 return (
                   <tr key={item.id} style={{ borderBottom: '1px solid #eaeaea' }}>
                     <td style={{ padding: '16px 24px' }}>
@@ -339,7 +351,11 @@ const InventoryManagement = () => {
                         <span style={{ fontWeight: '600', fontSize: '14px' }}>{item.name}</span>
                       </div>
                     </td>
-                    <td style={{ padding: '16px 24px', fontWeight: '700', fontSize: '14px' }}>{item.quantity}</td>
+                    <td style={{ padding: '16px 24px', fontSize: '14px' }}>{item.open_stock}</td>
+                    <td style={{ padding: '16px 24px', fontSize: '14px' }}>{item.purchase}</td>
+                    <td style={{ padding: '16px 24px', fontSize: '14px', fontWeight: '600' }}>{item.total}</td>
+                    <td style={{ padding: '16px 24px', fontSize: '14px', color: '#ff4d4d' }}>{item.issue}</td>
+                    <td style={{ padding: '16px 24px', fontWeight: '700', fontSize: '14px', color: item.balance < lowStockThreshold ? '#ff4d4d' : 'inherit' }}>{item.balance}</td>
                     <td style={{ padding: '16px 24px', fontSize: '14px', color: 'var(--text-secondary)' }}>{item.unit}</td>
                     <td style={{ padding: '16px 24px', fontSize: '14px', color: 'var(--text-secondary)' }}>
                       {formatLastRestocked(item.updated_at || item.created_at)}
@@ -415,27 +431,46 @@ const InventoryManagement = () => {
 
               <div style={{ display: 'flex', gap: '16px', marginBottom: '24px' }}>
                 <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Quantity</label>
+                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Open Stock</label>
                   <input
                     type="number"
-                    required
                     min="0"
                     step="0.1"
-                    value={newItem.quantity}
-                    onChange={(e) => setNewItem({ ...newItem, quantity: e.target.value })}
+                    value={newItem.open_stock}
+                    onChange={(e) => setNewItem({ ...newItem, open_stock: e.target.value })}
                     style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #eaeaea', fontSize: '14px', outline: 'none' }}
-                    placeholder="e.g. 10"
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Purchase</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    value={newItem.purchase}
+                    onChange={(e) => setNewItem({ ...newItem, purchase: e.target.value })}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #eaeaea', fontSize: '14px', outline: 'none' }}
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Issue</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    value={newItem.issue}
+                    onChange={(e) => setNewItem({ ...newItem, issue: e.target.value })}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #eaeaea', fontSize: '14px', outline: 'none' }}
                   />
                 </div>
                 <div style={{ flex: 1 }}>
                   <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Unit</label>
                   <input
                     type="text"
-                    required
                     value={newItem.unit}
                     onChange={(e) => setNewItem({ ...newItem, unit: e.target.value })}
                     style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #eaeaea', fontSize: '14px', outline: 'none' }}
-                    placeholder="e.g. kg, liters"
+                    placeholder="units"
                   />
                 </div>
               </div>
@@ -491,14 +526,35 @@ const InventoryManagement = () => {
 
               <div style={{ display: 'flex', gap: '16px', marginBottom: '24px' }}>
                 <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Quantity</label>
+                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Open Stock</label>
                   <input
                     type="number"
-                    required
                     min="0"
                     step="0.1"
-                    value={editingItem.quantity}
-                    onChange={(e) => setEditingItem({ ...editingItem, quantity: e.target.value })}
+                    value={editingItem.open_stock}
+                    onChange={(e) => setEditingItem({ ...editingItem, open_stock: e.target.value })}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #eaeaea', fontSize: '14px', outline: 'none' }}
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Purchase</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    value={editingItem.purchase}
+                    onChange={(e) => setEditingItem({ ...editingItem, purchase: e.target.value })}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #eaeaea', fontSize: '14px', outline: 'none' }}
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Issue</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    value={editingItem.issue}
+                    onChange={(e) => setEditingItem({ ...editingItem, issue: e.target.value })}
                     style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #eaeaea', fontSize: '14px', outline: 'none' }}
                   />
                 </div>
@@ -506,10 +562,10 @@ const InventoryManagement = () => {
                   <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Unit</label>
                   <input
                     type="text"
-                    required
                     value={editingItem.unit}
                     onChange={(e) => setEditingItem({ ...editingItem, unit: e.target.value })}
                     style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #eaeaea', fontSize: '14px', outline: 'none' }}
+                    placeholder="units"
                   />
                 </div>
               </div>
@@ -699,8 +755,11 @@ const InventoryManagement = () => {
                     <thead style={{ background: '#f9f9f9', borderBottom: '1px solid #eaeaea' }}>
                       <tr>
                         <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '13px', color: 'var(--text-secondary)' }}>Item Name</th>
-                        <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '13px', color: 'var(--text-secondary)', width: '120px' }}>Quantity</th>
-                        <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '13px', color: 'var(--text-secondary)', width: '120px' }}>Unit</th>
+                        <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '13px', color: 'var(--text-secondary)', width: '80px' }}>Open</th>
+                        <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '13px', color: 'var(--text-secondary)', width: '80px' }}>Purch</th>
+                        <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '13px', color: 'var(--text-secondary)', width: '80px' }}>Issue</th>
+                        <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '13px', color: 'var(--text-secondary)', width: '80px' }}>Bal</th>
+                        <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '13px', color: 'var(--text-secondary)', width: '100px' }}>Unit</th>
                         <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: '13px', color: 'var(--text-secondary)', width: '60px' }}></th>
                       </tr>
                     </thead>
@@ -718,15 +777,39 @@ const InventoryManagement = () => {
                           <td style={{ padding: '8px 16px' }}>
                             <input
                               type="number"
-                              value={item.quantity}
-                              onChange={(e) => updateScanResult(index, 'quantity', parseFloat(e.target.value))}
+                              value={item.open_stock || 0}
+                              onChange={(e) => updateScanResult(index, 'open_stock', parseFloat(e.target.value))}
+                              style={{ width: '100%', padding: '8px', border: '1px solid transparent', borderRadius: '4px', fontSize: '14px', outline: 'none' }}
+                            />
+                          </td>
+                          <td style={{ padding: '8px 16px' }}>
+                            <input
+                              type="number"
+                              value={item.purchase || 0}
+                              onChange={(e) => updateScanResult(index, 'purchase', parseFloat(e.target.value))}
+                              style={{ width: '100%', padding: '8px', border: '1px solid transparent', borderRadius: '4px', fontSize: '14px', outline: 'none' }}
+                            />
+                          </td>
+                          <td style={{ padding: '8px 16px' }}>
+                            <input
+                              type="number"
+                              value={item.issue || 0}
+                              onChange={(e) => updateScanResult(index, 'issue', parseFloat(e.target.value))}
+                              style={{ width: '100%', padding: '8px', border: '1px solid transparent', borderRadius: '4px', fontSize: '14px', outline: 'none' }}
+                            />
+                          </td>
+                          <td style={{ padding: '8px 16px' }}>
+                            <input
+                              type="number"
+                              value={item.balance || 0}
+                              onChange={(e) => updateScanResult(index, 'balance', parseFloat(e.target.value))}
                               style={{ width: '100%', padding: '8px', border: '1px solid transparent', borderRadius: '4px', fontSize: '14px', outline: 'none', fontWeight: '600' }}
                             />
                           </td>
                           <td style={{ padding: '8px 16px' }}>
                             <input
                               type="text"
-                              value={item.unit}
+                              value={item.unit || 'units'}
                               onChange={(e) => updateScanResult(index, 'unit', e.target.value)}
                               style={{ width: '100%', padding: '8px', border: '1px solid transparent', borderRadius: '4px', fontSize: '14px', outline: 'none', color: 'var(--text-secondary)' }}
                             />

@@ -100,6 +100,11 @@ export const restaurantService = {
     const response = await api.patch(`/api/v1/restaurants/${restaurantId}`, updateData);
     return response.data;
   },
+
+  deleteRestaurant: async (restaurantId) => {
+    const response = await api.delete(`/api/v1/restaurants/${restaurantId}`);
+    return response.data;
+  },
 };
 
 export const tableService = {
@@ -110,6 +115,16 @@ export const tableService = {
   
   updateTable: async (tableId, tableData) => {
     const response = await api.patch(`/api/v1/tables/${tableId}`, tableData);
+    return response.data;
+  },
+
+  createTable: async (tableData) => {
+    const response = await api.post('/api/v1/tables', tableData);
+    return response.data;
+  },
+
+  deleteTable: async (tableId) => {
+    const response = await api.delete(`/api/v1/tables/${tableId}`);
     return response.data;
   },
 };
@@ -202,6 +217,16 @@ export const inventoryService = {
 export const managerService = {
   getManagers: async () => {
     const response = await api.get('/api/v1/managers');
+    return response.data;
+  },
+
+  updateManager: async (managerId, updateData) => {
+    const response = await api.patch(`/api/v1/managers/${managerId}`, updateData);
+    return response.data;
+  },
+
+  deleteManager: async (managerId) => {
+    const response = await api.delete(`/api/v1/managers/${managerId}`);
     return response.data;
   },
 };

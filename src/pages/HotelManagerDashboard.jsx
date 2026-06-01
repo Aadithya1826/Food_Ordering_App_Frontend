@@ -18,7 +18,7 @@ import {
   CreditCard,
 } from 'lucide-react';
 import DataudipiTitle from '../assets/Dataudupi-Title.png';
-import { orderService, inventoryService, menuService, tableService } from '../services/api';
+import { orderService, inventoryService, menuService, tableService, reportsService } from '../services/api';
 import MenuManagement from '../components/MenuManagement';
 import OrdersManagement from '../components/OrdersManagement';
 import TableManagement from '../components/TableManagement';
@@ -54,21 +54,24 @@ const HotelManagerDashboard = () => {
   const [inventoryLoading, setInventoryLoading] = useState(true);
   const [menuItems, setMenuItems] = useState([]);
   const [tables, setTables] = useState([]);
+  const [reports, setReports] = useState(null);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        const [ordersData, inventoryData, menuData, tablesData] = await Promise.all([
+        const [ordersData, inventoryData, menuData, tablesData, reportsData] = await Promise.all([
           orderService.getLiveOrders().catch(() => []),
           inventoryService.getInventory().catch(() => []),
           menuService.getItems().catch(() => []),
           tableService.getTables().catch(() => []),
+          reportsService.getReports().catch(() => null),
         ]);
 
         setOrders(ordersData);
         setInventory(inventoryData);
         setMenuItems(menuData);
         setTables(tablesData);
+        setReports(reportsData);
       } catch (err) {
         console.error('Error fetching dashboard data:', err);
       } finally {
@@ -98,17 +101,17 @@ const HotelManagerDashboard = () => {
 
   // Calculate stats from live data
   const stats = [
-    { label: 'Total Orders', value: orders.length.toString(), change: '+12%', icon: ShoppingCart, color: '#ff8c42' },
-    { label: 'Revenue Today', value: '₹' + (orders.reduce((sum, o) => sum + (o.total_amount || 0), 0)).toLocaleString(), change: '+8%', icon: TrendingUp, color: '#2d7a4a' },
-    { label: 'Pending Orders', value: orders.filter(o => o.status !== 'COMPLETED').length.toString(), change: '-3', icon: Clock, color: '#ff8c42' },
-    { label: 'Active Tables', value: `${tables.length}/20`, change: `${tables.length > 0 ? Math.round((tables.length / 20) * 100) : 0}%`, icon: Table2, color: '#2d7a4a' },
+    { label: 'Total Orders', value: reports?.summary?.today_orders?.value?.toString() || '0', change: reports?.summary?.today_orders?.change || '0%', icon: ShoppingCart, color: '#ff8c42' },
+    { label: 'Revenue Today', value: '₹' + (reports?.summary?.today_revenue?.value || 0).toLocaleString(), change: reports?.summary?.today_revenue?.change || '0%', icon: TrendingUp, color: '#2d7a4a' },
+    { label: 'Pending Orders', value: orders.filter(o => o.status !== 'COMPLETED' && o.status !== 'PAID').length.toString(), change: 'Live', icon: Clock, color: '#ff8c42' },
+    { label: 'Active Tables', value: `${tables.filter(t => t.status === 'occupied').length}/${tables.length || 20}`, change: `${tables.length > 0 ? Math.round((tables.filter(t => t.status === 'occupied').length / tables.length) * 100) : 0}%`, icon: Table2, color: '#2d7a4a' },
   ];
 
-  // Get best sellers from fetched menu items
-  const bestSellersList = menuItems.length > 0
-    ? menuItems.slice(0, 3).map(item => ({
+  // Get best sellers from fetched reports
+  const bestSellersList = reports?.top_items?.length > 0
+    ? reports.top_items.slice(0, 3).map(item => ({
       name: item.name,
-      orders: Math.floor(Math.random() * 200),
+      orders: item.orders,
       icon: '🥘',
     }))
     : [];
