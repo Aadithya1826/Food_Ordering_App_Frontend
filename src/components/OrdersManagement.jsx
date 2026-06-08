@@ -43,6 +43,18 @@ const OrdersManagement = () => {
     }
   };
 
+  const updatePaymentStatus = async (orderId, isPaid) => {
+    const newStatus = isPaid ? 'Paid' : 'Pending';
+    setOrders(current => current.map(o => o.order_id === orderId ? { ...o, payment_status: newStatus } : o));
+    try {
+      await orderService.updateOrderPaymentStatus(orderId, newStatus);
+      fetchOrders();
+    } catch (err) {
+      console.error('Error updating order payment status:', err);
+      fetchOrders();
+    }
+  };
+
   const handleDragStart = (e, orderId) => {
     e.dataTransfer.setData('orderId', orderId);
   };
@@ -210,10 +222,58 @@ const OrdersManagement = () => {
                       justifyContent: 'space-between', 
                       alignItems: 'center',
                       borderTop: '1px solid rgba(0,0,0,0.06)',
-                      paddingTop: '16px'
+                      paddingTop: '16px',
+                      marginBottom: '16px'
                     }}>
                       <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: '500' }}>Table {order.table_number}</span>
                       <span style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-dark)' }}>₹ {order.total_amount}</span>
+                    </div>
+
+                    <div style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '8px'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '600' }}>Status:</span>
+                        <select 
+                          value={order.status === 'CONFIRMED' ? 'PENDING' : order.status}
+                          onChange={(e) => updateOrderStatus(order.order_id, e.target.value)}
+                          style={{
+                            padding: '4px 8px',
+                            borderRadius: '6px',
+                            border: '1px solid #ddd',
+                            fontSize: '12px',
+                            outline: 'none',
+                            cursor: 'pointer',
+                            background: '#f9f9f9',
+                            color: 'var(--text-dark)',
+                            fontWeight: '500'
+                          }}
+                        >
+                          <option value="PENDING">Pending</option>
+                          <option value="PREPARING">Preparing</option>
+                          <option value="READY">Ready</option>
+                          <option value="SERVED">Served</option>
+                        </select>
+                      </div>
+
+                      {order.payment_method?.toLowerCase() === 'cash' && (
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '4px' }}>
+                          <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '600' }}>Payment (Cash):</span>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                            <input 
+                              type="checkbox" 
+                              checked={order.payment_status?.toLowerCase() === 'paid'}
+                              onChange={(e) => updatePaymentStatus(order.order_id, e.target.checked)}
+                              style={{ cursor: 'pointer' }}
+                            />
+                            <span style={{ fontSize: '12px', fontWeight: '500', color: order.payment_status?.toLowerCase() === 'paid' ? '#2d7a4a' : '#ff8c42' }}>
+                              {order.payment_status?.toLowerCase() === 'paid' ? 'Paid' : 'Pending'}
+                            </span>
+                          </label>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}

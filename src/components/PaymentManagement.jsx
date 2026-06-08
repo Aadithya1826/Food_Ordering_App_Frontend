@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  TrendingUp, 
-  Wallet, 
-  CreditCard, 
+import {
+  TrendingUp,
+  Wallet,
+  CreditCard,
   Banknote,
   IndianRupee
 } from 'lucide-react';
@@ -32,17 +32,17 @@ const PaymentManagement = () => {
 
   // Calculate stats based on fetched orders
   const paidOrders = orders.filter(o => o.payment_status?.toLowerCase() === 'paid');
-  
+
   const totalCollection = paidOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
-  
+
   const upiPayments = paidOrders
     .filter(o => o.payment_method?.toLowerCase() === 'upi')
     .reduce((sum, o) => sum + (o.total_amount || 0), 0);
-    
+
   const cardPayments = paidOrders
     .filter(o => o.payment_method?.toLowerCase() === 'card')
     .reduce((sum, o) => sum + (o.total_amount || 0), 0);
-    
+
   const cashPayments = paidOrders
     .filter(o => o.payment_method?.toLowerCase() === 'cash')
     .reduce((sum, o) => sum + (o.total_amount || 0), 0);
@@ -54,7 +54,7 @@ const PaymentManagement = () => {
     const now = new Date();
     const diffTime = Math.abs(now - date);
     const diffMins = Math.floor(diffTime / (1000 * 60));
-    
+
     if (diffMins < 1) return 'Just now';
     if (diffMins < 60) return `${diffMins} min ago`;
     const diffHours = Math.floor(diffMins / 60);
@@ -162,11 +162,11 @@ const PaymentManagement = () => {
                 const isPaid = order.payment_status?.toLowerCase() === 'paid';
                 const isPending = order.payment_status?.toLowerCase() === 'pending';
                 const isFailed = order.payment_status?.toLowerCase() === 'failed';
-                
+
                 return (
                   <tr key={order.order_id} style={{ borderBottom: '1px solid #eaeaea' }}>
                     <td style={{ padding: '16px 24px', fontWeight: '700', fontSize: '14px', color: '#ff6b35' }}>#{order.order_id}</td>
-                    <td style={{ padding: '16px 24px', fontWeight: '600', fontSize: '14px', color: '#1a1a2e' }}>T-{order.table_number.toString().padStart(2, '0')}</td>
+                    <td style={{ padding: '16px 24px', fontWeight: '600', fontSize: '14px', color: '#1a1a2e' }}>{order.table_number.toString().padStart(2, '0')}</td>
                     <td style={{ padding: '16px 24px', fontWeight: '700', fontSize: '14px', color: '#1a1a2e' }}>₹{order.total_amount || 0}</td>
                     <td style={{ padding: '16px 24px', fontSize: '14px', color: 'var(--text-secondary)' }}>{order.payment_method || 'N/A'}</td>
                     <td style={{ padding: '16px 24px', fontSize: '14px', color: 'var(--text-secondary)' }}>

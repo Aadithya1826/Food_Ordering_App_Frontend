@@ -2,45 +2,55 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
-import Onboarding from './pages/Onboarding';
-import AdminDashboard from './pages/AdminDashboard';
-import HotelManagerDashboard from './pages/HotelManagerDashboard';
+import ErrorBoundary from './components/ErrorBoundary';
+import Toast from './components/Toast';
+import './styles/global.css';
+
+// Lazy load components for code splitting and faster initial load
+const Onboarding = React.lazy(() => import('./pages/Onboarding'));
+const AdminDashboard = React.lazy(() => import('./pages/AdminDashboard'));
+const HotelManagerDashboard = React.lazy(() => import('./pages/HotelManagerDashboard'));
 import './styles/global.css';
 
 function App() {
   return (
-    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-      <AuthProvider>
-        <div className="app">
-          <Routes>
-            {/* Auth Flow */}
-            <Route path="/" element={<Onboarding />} />
+    <ErrorBoundary>
+      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <AuthProvider>
+          <div className="app">
+            <Toast />
+            <React.Suspense fallback={<div className="flex items-center justify-center min-h-screen text-gray-500">Loading application...</div>}>
+              <Routes>
+                {/* Auth Flow */}
+                <Route path="/" element={<Onboarding />} />
 
-            {/* Protected Dashboards */}
-            <Route
-              path="/admin-dashboard"
-              element={
-                <ProtectedRoute>
-                  <AdminDashboard />
-                </ProtectedRoute>
-              }
-            />
+                {/* Protected Dashboards */}
+                <Route
+                  path="/admin-dashboard"
+                  element={
+                    <ProtectedRoute>
+                      <AdminDashboard />
+                    </ProtectedRoute>
+                  }
+                />
 
-            <Route
-              path="/manager-dashboard/:hotelId?"
-              element={
-                <ProtectedRoute>
-                  <HotelManagerDashboard />
-                </ProtectedRoute>
-              }
-            />
+                <Route
+                  path="/manager-dashboard/:hotelId?"
+                  element={
+                    <ProtectedRoute>
+                      <HotelManagerDashboard />
+                    </ProtectedRoute>
+                  }
+                />
 
-            {/* Catch-all redirect */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </div>
-      </AuthProvider>
-    </BrowserRouter>
+                {/* Catch-all redirect */}
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </React.Suspense>
+          </div>
+        </AuthProvider>
+      </BrowserRouter>
+    </ErrorBoundary>
   );
 }
 

@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { toast } from '../components/Toast';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -33,6 +34,51 @@ api.interceptors.request.use((config) => {
 
   return config;
 });
+
+// Response interceptor for global error handling and silent token refresh
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+
+    // Prevent infinite loops on refresh failures
+    if (originalRequest.url === '/api/v1/auth/refresh') {
+      return Promise.reject(error);
+    }
+
+    // Handle 401 Unauthorized (Token Expiry)
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      try {
+        const refreshResponse = await api.post('/api/v1/auth/refresh');
+        if (refreshResponse.data.access_token) {
+          localStorage.setItem('access_token', refreshResponse.data.access_token);
+          localStorage.setItem('user', JSON.stringify(refreshResponse.data.user));
+          
+          // Update the authorization header for the retried request
+          originalRequest.headers.Authorization = `Bearer ${refreshResponse.data.access_token}`;
+          return api(originalRequest);
+        }
+      } catch (refreshError) {
+        // Refresh failed (user is totally logged out)
+        toast.info("Session expired. Please log in again.");
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('user');
+        window.location.href = '/';
+        return Promise.reject(refreshError);
+      }
+    }
+
+    // Handle global 500 Server Errors
+    if (error.response?.status >= 500) {
+      toast.error("Server error. We've been notified.");
+    } else if (error.response?.status === 403) {
+      toast.error("You don't have permission to do this.");
+    }
+
+    return Promise.reject(error);
+  }
+);
 
 export const authService = {
   login: async (email, password, role = undefined) => {
@@ -176,6 +222,11 @@ export const orderService = {
     const response = await api.patch(`/api/v1/orders/${orderId}/status`, { status });
     return response.data;
   },
+
+  updateOrderPaymentStatus: async (orderId, payment_status) => {
+    const response = await api.patch(`/api/v1/orders/${orderId}/payment-status`, { payment_status });
+    return response.data;
+  },
 };
 
 export const inventoryService = {
@@ -217,6 +268,11 @@ export const inventoryService = {
 export const managerService = {
   getManagers: async () => {
     const response = await api.get('/api/v1/managers');
+    return response.data;
+  },
+
+  createManager: async (managerData) => {
+    const response = await api.post('/api/v1/managers', managerData);
     return response.data;
   },
 

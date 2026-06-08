@@ -17,6 +17,11 @@ import {
   MapPin,
   Pencil,
   Trash2,
+  Globe,
+  Bell,
+  Shield,
+  Database,
+  Save,
 } from 'lucide-react';
 import VoiceWidget from '../components/VoiceWidget';
 import DataudipiTitle from '../assets/Dataudupi-Title.png';
@@ -44,6 +49,10 @@ const AdminDashboard = () => {
   const [managersLoading, setManagersLoading] = useState(true);
   const [managersError, setManagersError] = useState(null);
   const [managerSearch, setManagerSearch] = useState('');
+  const [showAddManager, setShowAddManager] = useState(false);
+  const [newManager, setNewManager] = useState({ name: '', email: '', password: '', restaurant_id: '' });
+  const [managerCreateError, setManagerCreateError] = useState(null);
+  const [isCreatingManager, setIsCreatingManager] = useState(false);
 
   const [reports, setReports] = useState(null);
   const [reportsLoading, setReportsLoading] = useState(true);
@@ -296,13 +305,48 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleCreateManager = async (e) => {
+    e.preventDefault();
+    setManagerCreateError(null);
+
+    if (!newManager.name.trim() || !newManager.email.trim() || !newManager.password.trim() || !newManager.restaurant_id) {
+      setManagerCreateError('All fields including restaurant assignment are required.');
+      return;
+    }
+
+    try {
+      setIsCreatingManager(true);
+      await managerService.createManager({
+        name: newManager.name,
+        email: newManager.email,
+        password: newManager.password,
+        role: "HOTEL_ADMIN",
+        restaurant_id: parseInt(newManager.restaurant_id)
+      });
+      const response = await managerService.getManagers();
+      setManagers(response);
+      setShowAddManager(false);
+      setNewManager({ name: '', email: '', password: '', restaurant_id: '' });
+    } catch (error) {
+      console.error('Error creating manager:', error);
+      setManagerCreateError(error.response?.data?.detail || 'Unable to create manager.');
+    } finally {
+      setIsCreatingManager(false);
+    }
+  };
+
   const handleUpdateManager = async (e) => {
     e.preventDefault();
     if (!editingManager?.name?.trim() || !editingManager?.email?.trim()) return;
 
+    const updatePayload = { ...editingManager };
+    if (!updatePayload.password) {
+      delete updatePayload.password;
+    }
+
     try {
       setIsSavingManager(true);
-      await managerService.updateManager(editingManager.id, editingManager);
+      await managerService.updateManager(editingManager.id, updatePayload);
       const response = await managerService.getManagers();
       setManagers(response);
       setShowEditManager(false);
@@ -999,7 +1043,7 @@ const AdminDashboard = () => {
 
               {/* Add Manager Button */}
               <button
-                onClick={() => { }}
+                onClick={() => setShowAddManager(true)}
                 className="btn btn-primary"
                 style={{
                   display: 'flex',
@@ -1277,6 +1321,16 @@ const AdminDashboard = () => {
                         />
                       </label>
                       <label style={{ display: 'grid', gap: '8px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                        Password
+                        <input
+                          type="password"
+                          value={editingManager.password || ''}
+                          onChange={(e) => setEditingManager({ ...editingManager, password: e.target.value })}
+                          placeholder="Enter new password (leave blank to keep current)"
+                          style={{ padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--surface)', color: 'black' }}
+                        />
+                      </label>
+                      <label style={{ display: 'grid', gap: '8px', fontSize: '13px', color: 'var(--text-secondary)' }}>
                         Hotel Assignment
                         <select
                           value={editingManager.restaurant_id || ''}
@@ -1314,6 +1368,120 @@ const AdminDashboard = () => {
                         </button>
                         <button type="submit" className="btn btn-primary" disabled={isSavingManager} style={{ minWidth: '120px' }}>
                           {isSavingManager ? 'Saving...' : 'Save Changes'}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              )}
+
+              {showAddManager && (
+                <div
+                  style={{
+                    position: 'fixed',
+                    inset: 0,
+                    background: 'rgba(0,0,0,0.45)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 50,
+                    padding: '24px',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: '100%',
+                      maxWidth: '520px',
+                      background: 'var(--surface)',
+                      borderRadius: '24px',
+                      padding: '28px',
+                      boxShadow: '0 24px 80px rgba(0,0,0,0.14)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                      <div>
+                        <h3 style={{ margin: 0, fontSize: '20px' }}>Add Manager</h3>
+                        <p style={{ margin: '8px 0 0', color: 'var(--text-secondary)', fontSize: '14px' }}>
+                          Create a new hotel manager account.
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setShowAddManager(false);
+                          setManagerCreateError(null);
+                        }}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: 'var(--text-secondary)',
+                          cursor: 'pointer',
+                          fontSize: '20px',
+                        }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                    <form onSubmit={handleCreateManager} style={{ display: 'grid', gap: '16px' }}>
+                      <label style={{ display: 'grid', gap: '8px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                        Full Name
+                        <input
+                          type="text"
+                          value={newManager.name}
+                          onChange={(e) => setNewManager({ ...newManager, name: e.target.value })}
+                          placeholder="Enter full name"
+                          style={{ padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--surface)', color: 'var(--text-primary)' }}
+                        />
+                      </label>
+                      <label style={{ display: 'grid', gap: '8px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                        Email Address
+                        <input
+                          type="email"
+                          value={newManager.email}
+                          onChange={(e) => setNewManager({ ...newManager, email: e.target.value })}
+                          placeholder="Enter email address"
+                          style={{ padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--surface)', color: 'var(--text-primary)' }}
+                        />
+                      </label>
+                      <label style={{ display: 'grid', gap: '8px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                        Password
+                        <input
+                          type="password"
+                          value={newManager.password}
+                          onChange={(e) => setNewManager({ ...newManager, password: e.target.value })}
+                          placeholder="Enter secure password"
+                          style={{ padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--surface)', color: 'var(--text-primary)' }}
+                        />
+                      </label>
+                      <label style={{ display: 'grid', gap: '8px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                        Assign to Hotel
+                        <select
+                          value={newManager.restaurant_id}
+                          onChange={(e) => setNewManager({ ...newManager, restaurant_id: e.target.value })}
+                          style={{ padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--surface)', color: 'var(--text-primary)' }}
+                        >
+                          <option value="">Select a hotel...</option>
+                          {hotels.map(hotel => (
+                            <option key={hotel.id} value={hotel.id}>
+                              {hotel.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      {managerCreateError && <p style={{ color: '#c0392b', fontSize: '13px' }}>{managerCreateError}</p>}
+                      <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', flexWrap: 'wrap', marginTop: '8px' }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowAddManager(false);
+                            setManagerCreateError(null);
+                          }}
+                          className="btn btn-secondary"
+                          style={{ minWidth: '120px' }}
+                        >
+                          Cancel
+                        </button>
+                        <button type="submit" className="btn btn-primary" disabled={isCreatingManager} style={{ minWidth: '120px' }}>
+                          {isCreatingManager ? 'Creating...' : 'Create Manager'}
                         </button>
                       </div>
                     </form>
@@ -1514,10 +1682,161 @@ const AdminDashboard = () => {
           )}
 
           {activePage === 'settings' && (
-            <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-              <Settings size={48} style={{ margin: '0 auto 20px', color: 'var(--text-secondary)', opacity: 0.5 }} />
-              <h3 style={{ fontSize: '20px', marginBottom: '8px' }}>System Settings</h3>
-              <p style={{ color: 'var(--text-secondary)' }}>System configuration - coming soon</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <h1 style={{ fontSize: '24px', fontWeight: '700', marginBottom: '4px', color: '#111827', margin: 0 }}>
+                    System Settings
+                  </h1>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '14px', margin: 0 }}>
+                    Configure platform-wide preferences
+                  </p>
+                </div>
+                <button
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    background: '#ff6b35',
+                    color: 'white',
+                    padding: '10px 20px',
+                    borderRadius: '24px',
+                    fontWeight: '600',
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                    border: 'none',
+                    boxShadow: '0 4px 12px rgba(255, 107, 53, 0.2)'
+                  }}
+                >
+                  <Save size={18} />
+                  Save Changes
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                
+                {/* General Section */}
+                <div style={{ background: '#FFFFFF', borderRadius: '16px', padding: '24px', border: '1px solid rgba(15, 23, 42, 0.08)', boxShadow: '0 4px 20px rgba(15, 23, 42, 0.03)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
+                    <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#ff6b35', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Globe size={20} />
+                    </div>
+                    <h2 style={{ fontSize: '18px', fontWeight: '700', margin: 0 }}>General</h2>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Platform Name</label>
+                      <input type="text" defaultValue="Data Udipi" style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: '#FAFAFA', fontSize: '14px', color: '#111827', outline: 'none' }} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Support Email</label>
+                      <input type="email" defaultValue="support@dataudipi.com" style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: '#FAFAFA', fontSize: '14px', color: '#111827', outline: 'none' }} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Default Currency</label>
+                      <input type="text" defaultValue="INR (₹)" style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: '#FAFAFA', fontSize: '14px', color: '#111827', outline: 'none' }} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Timezone</label>
+                      <input type="text" defaultValue="Asia/Kolkata (IST)" style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: '#FAFAFA', fontSize: '14px', color: '#111827', outline: 'none' }} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Notifications Section */}
+                <div style={{ background: '#FFFFFF', borderRadius: '16px', padding: '24px', border: '1px solid rgba(15, 23, 42, 0.08)', boxShadow: '0 4px 20px rgba(15, 23, 42, 0.03)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
+                    <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#10B981', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Bell size={20} />
+                    </div>
+                    <h2 style={{ fontSize: '18px', fontWeight: '700', margin: 0 }}>Notifications</h2>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 0', borderBottom: '1px solid var(--border-color)' }}>
+                      <div>
+                        <h4 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '4px', margin: 0, color: '#111827' }}>Email Notifications</h4>
+                        <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>Receive platform updates via email</p>
+                      </div>
+                      <div style={{ width: '44px', height: '24px', background: '#ff6b35', borderRadius: '12px', position: 'relative', cursor: 'pointer' }}>
+                        <div style={{ width: '20px', height: '20px', background: 'white', borderRadius: '50%', position: 'absolute', top: '2px', left: '22px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }} />
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 0', borderBottom: '1px solid var(--border-color)' }}>
+                      <div>
+                        <h4 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '4px', margin: 0, color: '#111827' }}>Push Notifications</h4>
+                        <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>Browser push notifications for critical alerts</p>
+                      </div>
+                      <div style={{ width: '44px', height: '24px', background: '#ff6b35', borderRadius: '12px', position: 'relative', cursor: 'pointer' }}>
+                        <div style={{ width: '20px', height: '20px', background: 'white', borderRadius: '50%', position: 'absolute', top: '2px', left: '22px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }} />
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 0' }}>
+                      <div>
+                        <h4 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '4px', margin: 0, color: '#111827' }}>Order Alerts</h4>
+                        <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>Get notified for new orders across hotels</p>
+                      </div>
+                      <div style={{ width: '44px', height: '24px', background: '#ff6b35', borderRadius: '12px', position: 'relative', cursor: 'pointer' }}>
+                        <div style={{ width: '20px', height: '20px', background: 'white', borderRadius: '50%', position: 'absolute', top: '2px', left: '22px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Security Section */}
+                <div style={{ background: '#FFFFFF', borderRadius: '16px', padding: '24px', border: '1px solid rgba(15, 23, 42, 0.08)', boxShadow: '0 4px 20px rgba(15, 23, 42, 0.03)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
+                    <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#F97316', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Shield size={20} />
+                    </div>
+                    <h2 style={{ fontSize: '18px', fontWeight: '700', margin: 0 }}>Security</h2>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 0', borderBottom: '1px solid var(--border-color)' }}>
+                      <div>
+                        <h4 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '4px', margin: 0, color: '#111827' }}>Two-Factor Authentication</h4>
+                        <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>Require 2FA for all admin logins</p>
+                      </div>
+                      <div style={{ width: '44px', height: '24px', background: '#E2E8F0', borderRadius: '12px', position: 'relative', cursor: 'pointer' }}>
+                        <div style={{ width: '20px', height: '20px', background: 'white', borderRadius: '50%', position: 'absolute', top: '2px', left: '2px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }} />
+                      </div>
+                    </div>
+                    <div style={{ paddingTop: '24px' }}>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Session Timeout</label>
+                      <input type="text" defaultValue="30 minutes" style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: '#FAFAFA', fontSize: '14px', color: '#111827', outline: 'none' }} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Data & Backup Section */}
+                <div style={{ background: '#FFFFFF', borderRadius: '16px', padding: '24px', border: '1px solid rgba(15, 23, 42, 0.08)', boxShadow: '0 4px 20px rgba(15, 23, 42, 0.03)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
+                    <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#64748B', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Database size={20} />
+                    </div>
+                    <h2 style={{ fontSize: '18px', fontWeight: '700', margin: 0 }}>Data & Backup</h2>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 0', borderBottom: '1px solid var(--border-color)' }}>
+                      <div>
+                        <h4 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '4px', margin: 0, color: '#111827' }}>Automatic Backups</h4>
+                        <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>Schedule automatic database backups</p>
+                      </div>
+                      <div style={{ width: '44px', height: '24px', background: '#ff6b35', borderRadius: '12px', position: 'relative', cursor: 'pointer' }}>
+                        <div style={{ width: '20px', height: '20px', background: 'white', borderRadius: '50%', position: 'absolute', top: '2px', left: '22px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }} />
+                      </div>
+                    </div>
+                    <div style={{ paddingTop: '24px' }}>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Backup Frequency</label>
+                      <input type="text" defaultValue="Daily" style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: '#FAFAFA', fontSize: '14px', color: '#111827', outline: 'none' }} />
+                    </div>
+                  </div>
+                </div>
+
+              </div>
             </div>
           )}
         </div>

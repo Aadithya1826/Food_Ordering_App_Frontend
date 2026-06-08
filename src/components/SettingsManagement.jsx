@@ -156,7 +156,7 @@ const SettingsManagement = () => {
     display: 'block',
     fontSize: '11px',
     fontWeight: '700',
-    color: 'var(--text-secondary)',
+    color: '#000000ff',
     marginBottom: '8px',
     textTransform: 'uppercase',
     letterSpacing: '0.5px'
@@ -199,7 +199,7 @@ const SettingsManagement = () => {
       <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
 
         {/* Restaurant Information Card */}
-        <div style={{ background: 'var(--surface)', borderRadius: '12px', padding: '24px', border: '1px solid var(--border)' }}>
+        <div className="admin-card">
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
             <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: '#ff6b35', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Store size={20} />
@@ -228,7 +228,7 @@ const SettingsManagement = () => {
         </div>
 
         {/* Opening Hours Card */}
-        <div style={{ background: 'var(--surface)', borderRadius: '12px', padding: '24px', border: '1px solid var(--border)' }}>
+        <div className="admin-card">
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
             <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: '#8e9eab', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Clock size={20} />
@@ -249,7 +249,7 @@ const SettingsManagement = () => {
         </div>
 
         {/* Notifications Card */}
-        <div style={{ background: 'var(--surface)', borderRadius: '12px', padding: '24px', border: '1px solid var(--border)' }}>
+        <div className="admin-card">
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
             <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: '#2d7a4a', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Bell size={20} />
@@ -280,7 +280,7 @@ const SettingsManagement = () => {
         </div>
 
         {/* Billing & Printing Card */}
-        <div style={{ background: 'var(--surface)', borderRadius: '12px', padding: '24px', border: '1px solid var(--border)' }}>
+        <div className="admin-card">
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
             <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: '#ffaa71', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Receipt size={20} />

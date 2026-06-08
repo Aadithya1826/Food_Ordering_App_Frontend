@@ -55,6 +55,7 @@ const Onboarding = () => {
     setError('');
     setSuccessMessage('');
     setFormData({ name: '', email: '', password: '', confirmPassword: '', restaurant_id: '' });
+    setAuthMode('login');
     setStep('auth');
   };
 
@@ -291,6 +292,7 @@ const Onboarding = () => {
         )}
 
         {/* Tabs for Login/Signup */}
+        {selectedRole !== 'hotel_manager' && (
         <div
           style={{
             display: 'flex',
@@ -343,6 +345,7 @@ const Onboarding = () => {
             Sign Up
           </button>
         </div>
+        )}
 
         {/* Auth Form */}
         <form className="auth-form" onSubmit={authMode === 'login' ? handleLogin : handleSignup}>

@@ -23,7 +23,7 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   background-color: var(--dark-bg);
   color: var(--text-primary);
   line-height: 1.6;
@@ -155,10 +155,10 @@ body,
 }
 
 .sidebar-menu-button.active {
-  background: rgb(255, 76, 21);
-  color: #ffffff;
-  border-left-color: rgb(255, 60, 0);
-  box-shadow: inset 6px 0 0 rgb(255, 60, 0);
+  background: rgba(255, 140, 66, 0.15);
+  color: #ff8c42;
+  border-left-color: #ff8c42;
+  box-shadow: inset 4px 0 0 #ff8c42;
 }
 
 .sidebar-menu-icon {
@@ -289,7 +289,13 @@ body,
   border: 1px solid rgba(15, 23, 42, 0.08);
   border-radius: 22px;
   padding: 24px;
-  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.05);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.admin-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
 }
 
 .admin-stats-grid {
@@ -305,7 +311,14 @@ body,
   border: 1px solid rgba(15, 23, 42, 0.08);
   border-radius: 22px;
   padding: 24px;
-  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.04);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.admin-table-card:hover,
+.admin-activity-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
 }
 
 .admin-table-card table {
@@ -330,6 +343,14 @@ body,
 .admin-table-card td {
   font-size: 14px;
   color: var(--text-dark);
+}
+
+.admin-table-card tbody tr {
+  transition: background-color 0.2s ease;
+}
+
+.admin-table-card tbody tr:hover {
+  background-color: rgba(0, 0, 0, 0.02);
 }
 
 .admin-shell .btn:hover,
@@ -486,21 +507,24 @@ body,
   color: white;
   font-weight: 700;
   padding: 14px 24px;
+  box-shadow: 0 4px 12px rgba(255, 140, 66, 0.2);
 }
 
 .btn-primary:hover:not(:disabled) {
   transform: translateY(-2px);
-  color: #000000;
-  box-shadow: 0 10px 25px rgba(255, 140, 66, 0.3);
+  color: white;
+  box-shadow: 0 8px 20px rgba(255, 140, 66, 0.4);
 }
 
 .btn-primary:active:not(:disabled) {
   transform: translateY(0);
+  box-shadow: 0 4px 12px rgba(255, 140, 66, 0.2);
 }
 
 .btn-primary:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+  box-shadow: none;
 }
 
 .btn-role {
