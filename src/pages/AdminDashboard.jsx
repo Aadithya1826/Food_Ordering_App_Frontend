@@ -122,7 +122,7 @@ const AdminDashboard = () => {
     fetchTables();
     fetchHotels();
     fetchManagers();
-    
+
     const fetchReports = async () => {
       try {
         setReportsLoading(true);
@@ -134,8 +134,32 @@ const AdminDashboard = () => {
         setReportsLoading(false);
       }
     };
-    fetchReports();
-  }, []);
+
+    if (['dashboard', 'reports'].includes(activePage)) {
+      fetchReports();
+    }
+  }, [activePage]);
+
+  // Scroll to top when tab changes
+  useEffect(() => {
+    const scrollToTop = () => {
+      window.scrollTo(0, 0);
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+      const mainBody = document.querySelector('.admin-main-body');
+      if (mainBody) {
+        mainBody.scrollTo(0, 0);
+        mainBody.scrollTop = 0;
+      }
+      const adminMain = document.querySelector('.admin-main');
+      if (adminMain) {
+        adminMain.scrollTop = 0;
+      }
+    };
+
+    scrollToTop();
+    setTimeout(scrollToTop, 50);
+  }, [activePage]);
 
   // Dynamic stats
   const stats = [
@@ -200,9 +224,11 @@ const AdminDashboard = () => {
     },
   ];
 
+  const paymentTotal = (reports?.payment_methods || []).reduce((sum, pm) => sum + (pm.value || 0), 0) || 1;
   const paymentMethods = reports?.payment_methods?.map((pm, idx) => ({
     name: pm.name,
     value: pm.value,
+    percentage: ((pm.value || 0) / paymentTotal) * 100,
     color: ['#ff8c42', '#2d7a4a', '#ff6b6b', '#6b7280'][idx % 4]
   })) || [];
 
@@ -218,12 +244,61 @@ const AdminDashboard = () => {
 
   const performanceRows = topHotels;
 
-  const recentActivity = [
-    { type: 'hotel_added', message: 'New hotel added', details: 'Heritage Kitchen - Delhi', time: '2 hours ago' },
-    { type: 'manager_assigned', message: 'Manager assigned', details: 'Rajesh K. → Grand Udpi Palace', time: '4 hours ago' },
-    { type: 'venue_activated', message: 'Venue activated', details: 'Coastal Kitchen - Branch 2', time: '6 hours ago' },
-    { type: 'hotel_deactivated', message: 'Hotel deactivated', details: 'Old Mysore Cafe', time: '1 day ago' },
-  ];
+  const recentActivity = React.useMemo(() => {
+    const activities = [];
+
+    // Add hotels to activity
+    hotels.forEach(hotel => {
+      if (hotel.created_at) {
+        activities.push({
+          type: 'hotel_added',
+          message: 'New hotel added',
+          details: `${hotel.name} - ${hotel.address || 'Unknown'}`,
+          timeDate: new Date(hotel.created_at)
+        });
+      }
+    });
+
+    // Add managers to activity
+    managers.forEach(manager => {
+      if (manager.created_at) {
+        activities.push({
+          type: 'manager_assigned',
+          message: 'Manager assigned',
+          details: `${manager.name} → ${manager.restaurant_name || 'Unassigned'}`,
+          timeDate: new Date(manager.created_at)
+        });
+      }
+    });
+
+    // Sort by newest first
+    activities.sort((a, b) => b.timeDate - a.timeDate);
+
+    // Format time for display
+    const timeAgo = (date) => {
+      const seconds = Math.floor((new Date() - date) / 1000);
+      let interval = seconds / 31536000;
+      if (interval > 1) return Math.floor(interval) + " years ago";
+      interval = seconds / 2592000;
+      if (interval > 1) return Math.floor(interval) + " months ago";
+      interval = seconds / 86400;
+      if (interval > 1) return Math.floor(interval) + " days ago";
+      interval = seconds / 3600;
+      if (interval > 1) return Math.floor(interval) + " hours ago";
+      interval = seconds / 60;
+      if (interval > 1) return Math.floor(interval) + " minutes ago";
+      return "Just now";
+    };
+
+    if (activities.length === 0) {
+      return [{ type: 'hotel_added', message: 'No recent activity', details: 'Waiting for new updates', time: 'Just now' }];
+    }
+
+    return activities.slice(0, 4).map(act => ({
+      ...act,
+      time: timeAgo(act.timeDate)
+    }));
+  }, [hotels, managers]);
 
   const filteredHotels = hotels.filter((hotel) => {
     const query = hotelSearch.toLowerCase();
@@ -426,7 +501,24 @@ const AdminDashboard = () => {
 
       {/* Main Content */}
       <div className={`admin-main ${sidebarOpen ? 'main-expanded' : 'main-collapsed'}`}>
-        {/* Header */}
+
+        {/* Mobile Header (Visible only on small screens via CSS) */}
+        <div className="admin-header-mobile">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', marginBottom: '24px' }}>
+            <img src={DataudipiTitle} alt="Data Udipi" style={{ height: '24px' }} />
+            <div className="admin-header-badge" style={{ position: 'static' }}>ADMIN</div>
+          </div>
+          <h1>{activePage === 'dashboard' ? 'Dashboard' :
+            activePage === 'hotels' ? 'Hotels & Venues' :
+              activePage === 'managers' ? 'Managers' :
+                activePage === 'reports' ? 'Reports' : 'Settings'}</h1>
+          <p>{activePage === 'dashboard' ? 'Platform-wide overview' :
+            activePage === 'hotels' ? `${hotels.length} Hotels Registered` :
+              activePage === 'managers' ? 'Hotel managers & assignments' :
+                activePage === 'reports' ? 'Performance insights' : 'Accounts & preferences'}</p>
+        </div>
+
+        {/* Desktop Header */}
         <div className="admin-header">
           <div className="admin-header-left">
             <button
@@ -449,7 +541,7 @@ const AdminDashboard = () => {
         {/* Content Area */}
         <div className="admin-main-body">
           {activePage === 'dashboard' && (
-            <>
+            <div className="admin-page-mobile-wrapper">
               {/* Stats Cards */}
               <div className="admin-stats-grid">
                 {stats.map((stat, idx) => {
@@ -483,120 +575,61 @@ const AdminDashboard = () => {
               {/* Top Hotels Section */}
               <div className="admin-table-card">
                 <h2 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '20px' }}>Top Performing Hotels</h2>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
-                      <th style={{ textAlign: 'left', padding: '12px 0', fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '600' }}>
-                        Hotel
-                      </th>
-                      <th style={{ textAlign: 'left', padding: '12px 0', fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '600' }}>
-                        City
-                      </th>
-                      <th style={{ textAlign: 'right', padding: '12px 0', fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '600' }}>
-                        Revenue
-                      </th>
-                      <th style={{ textAlign: 'right', padding: '12px 0', fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '600' }}>
-                        Orders
-                      </th>
-                      <th style={{ textAlign: 'right', padding: '12px 0', fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '600' }}>
-                        Growth
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {topHotels.map((hotel, idx) => (
-                      <tr
-                        key={idx}
-                        style={{ borderBottom: '1px solid var(--border-color)', cursor: 'pointer' }}
-                        onClick={() => navigate(`/manager-dashboard/${hotel.id}`)}
-                      >
-                        <td style={{ padding: '16px 0', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <div
-                            style={{
-                              width: '36px',
-                              height: '36px',
-                              background: 'var(--primary)',
-                              borderRadius: '6px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              color: 'white',
-                              fontWeight: '700',
-                              fontSize: '16px',
-                            }}
-                          >
-                            {idx + 1}
-                          </div>
-                          <div>
-                            <p style={{ fontWeight: '600', fontSize: '14px' }}>{hotel.name}</p>
-                          </div>
-                        </td>
-                        <td style={{ padding: '16px 0', fontSize: '14px', color: 'var(--text-secondary)' }}>
-                          📍 {hotel.city}
-                        </td>
-                        <td style={{ padding: '16px 0', textAlign: 'right', fontWeight: '600', fontSize: '14px' }}>{hotel.revenue}</td>
-                        <td style={{ padding: '16px 0', textAlign: 'right', fontSize: '14px', color: 'var(--text-secondary)' }}>
-                          {hotel.orders}
-                        </td>
-                        <td style={{ padding: '16px 0', textAlign: 'right', color: '#2d7a4a', fontWeight: '600', fontSize: '14px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {/* Header Row for Desktop (Hidden on mobile via CSS if needed, but flex handles it) */}
+                  <div className="top-hotels-header" style={{ display: 'flex', padding: '0 12px 12px', borderBottom: '1px solid var(--border-color)', fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '600' }}>
+                    <div style={{ flex: 2 }}>Hotel</div>
+                    <div style={{ flex: 1, textAlign: 'right' }}>Revenue</div>
+                    <div style={{ flex: 1, textAlign: 'right', display: 'none', '@media (minWidth: 768px)': { display: 'block' } }} className="desktop-only">Orders</div>
+                    <div style={{ flex: '0 0 60px', textAlign: 'right' }}>Growth</div>
+                  </div>
+
+                  {topHotels.map((hotel, idx) => (
+                    <div
+                      key={idx}
+                      onClick={() => navigate(`/manager-dashboard/${hotel.id}`)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '12px',
+                        background: 'rgba(255, 255, 255, 0.02)',
+                        borderRadius: '12px',
+                        cursor: 'pointer',
+                        transition: 'background 0.2s'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)'}
+                    >
+                      <div style={{ flex: 2, display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#ff6b35', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', fontSize: '14px', flexShrink: 0 }}>
+                          {idx + 1}
+                        </div>
+                        <div>
+                          <p style={{ fontWeight: '600', fontSize: '14px', margin: 0, color: 'black' }}>{hotel.name}</p>
+                          <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>📍 {hotel.city}</p>
+                        </div>
+                      </div>
+
+                      <div style={{ flex: 1, textAlign: 'right' }}>
+                        <p style={{ fontWeight: '600', fontSize: '14px', margin: 0, color: 'var(--text-primary)' }}>{hotel.revenue}</p>
+                        <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }} className="mobile-only-orders">{hotel.orders} orders</p>
+                      </div>
+
+                      <div style={{ flex: 1, textAlign: 'right' }} className="desktop-only">
+                        <p style={{ fontSize: '14px', color: 'var(--text-secondary)', margin: 0 }}>{hotel.orders}</p>
+                      </div>
+
+                      <div style={{ flex: '0 0 60px', textAlign: 'right', display: 'flex', justifyContent: 'flex-end' }}>
+                        <span style={{ background: 'rgba(45, 122, 74, 0.1)', color: '#2d7a4a', padding: '4px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: '700' }}>
                           {hotel.growth}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
 
-              {/* Table Inventory Section */}
-              <div className="admin-table-card" style={{ marginTop: '24px' }}>
-                <h2 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '20px' }}>Table Inventory</h2>
-                {tablesLoading ? (
-                  <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>Loading table details...</p>
-                ) : tablesError ? (
-                  <p style={{ color: '#c0392b', fontSize: '14px' }}>{tablesError}</p>
-                ) : tables.length === 0 ? (
-                  <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>No table records available.</p>
-                ) : (
-                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <thead>
-                      <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
-                        <th style={{ textAlign: 'left', padding: '12px 0', fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '600' }}>
-                          Table ID
-                        </th>
-                        <th style={{ textAlign: 'left', padding: '12px 0', fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '600' }}>
-                          Table Number
-                        </th>
-                        <th style={{ textAlign: 'left', padding: '12px 0', fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '600' }}>
-                          Restaurant
-                        </th>
-                        <th style={{ textAlign: 'left', padding: '12px 0', fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '600' }}>
-                          QR Code
-                        </th>
-                        <th style={{ textAlign: 'right', padding: '12px 0', fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '600' }}>
-                          Created At
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {tables.map((table) => (
-                        <tr key={table.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                          <td style={{ padding: '16px 0', fontSize: '14px' }}>{table.id}</td>
-                          <td style={{ padding: '16px 0', fontSize: '14px', fontWeight: '600' }}>{table.table_number}</td>
-                          <td style={{ padding: '16px 0', fontSize: '14px', color: 'var(--text-secondary)' }}>{table.restaurant_id ?? '—'}</td>
-                          <td style={{ padding: '16px 0', fontSize: '14px', color: 'var(--text-secondary)' }}>
-                            <a href={table.qr_code} target="_blank" rel="noreferrer" style={{ color: 'var(--primary)' }}>
-                              View QR
-                            </a>
-                          </td>
-                          <td style={{ padding: '16px 0', textAlign: 'right', fontSize: '14px', color: 'var(--text-secondary)' }}>
-                            {new Date(table.created_at).toLocaleString()}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
+
 
               {/* Recent Activity Section */}
               <div className="admin-activity-card">
@@ -640,13 +673,35 @@ const AdminDashboard = () => {
                   ))}
                 </div>
               </div>
-            </>
+            </div>
           )}
 
           {activePage === 'hotels' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div className="hotels-page-container" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <style>{`
+                @media (max-width: 1024px) {
+                  .hotels-page-container {
+                    padding: 0 16px;
+                  }
+                  .hotels-search-bar {
+                    flex-direction: column !important;
+                    align-items: stretch !important;
+                  }
+                  .hotels-search-bar input {
+                    max-width: none !important;
+                  }
+                  .hotels-search-bar span {
+                    white-space: normal !important;
+                    text-align: center;
+                  }
+                  .admin-mobile-card {
+                    margin-left: 0 !important;
+                    margin-right: 0 !important;
+                  }
+                }
+              `}</style>
               {/* Header */}
-              <div>
+              <div className="desktop-only">
                 <h2 style={{ margin: 0, fontSize: '28px', fontWeight: '700', marginBottom: '8px' }}>Hotels & Venues</h2>
                 <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '14px' }}>
                   Manage hotel records from the restaurant table. Add new hotels, search existing venues, and review address and contact details.
@@ -675,7 +730,7 @@ const AdminDashboard = () => {
               </button>
 
               {/* Search Bar */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
+              <div className="hotels-search-bar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
                 <input
                   type="text"
                   value={hotelSearch}
@@ -688,7 +743,7 @@ const AdminDashboard = () => {
                     borderRadius: '8px',
                     border: '1px solid var(--border-color)',
                     background: 'var(--surface)',
-                    color: 'var(--text-primary)',
+                    color: 'black',
                     fontSize: '14px',
                   }}
                 />
@@ -720,109 +775,67 @@ const AdminDashboard = () => {
                     <div
                       key={hotel.id}
                       onClick={() => navigate(`/manager-dashboard/${hotel.id}`)}
+                      className="admin-mobile-card"
                       style={{
-                        background: '#FFFFFF',
-                        borderRadius: '12px',
-                        padding: '20px',
-                        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        transition: 'all 0.25s ease',
+                        padding: '0',
+                        overflow: 'hidden',
                         cursor: 'pointer',
-                        position: 'relative',
+                        transition: 'all 0.2s',
+                        background: '#ffffff',
+                        borderRadius: '16px',
+                        border: '1px solid rgba(0,0,0,0.05)',
                       }}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.14)';
-                        e.currentTarget.style.transform = 'translateY(-4px)';
+                        e.currentTarget.style.transform = 'translateY(-2px)';
+                        e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.06)';
                       }}
                       onMouseLeave={(e) => {
-                        e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.08)';
                         e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.03)';
                       }}
                     >
-                      {/* Hotel Icon at Top Left */}
-                      <div style={{ position: 'absolute', top: '16px', left: '16px' }}>
-                        <Building2 size={24} color="#ff8c42" />
-                      </div>
-
-                      {/* Actions and Status */}
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '12px', marginBottom: '12px', paddingTop: '8px', position: 'relative', zIndex: 2 }}>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setEditingHotel(hotel); setShowEditHotel(true); }}
-                          style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center', color: '#666', transition: 'color 0.2s' }}
-                          title="Edit Hotel"
-                          onMouseEnter={(e) => e.currentTarget.style.color = 'var(--primary)'}
-                          onMouseLeave={(e) => e.currentTarget.style.color = '#666'}
-                        >
-                          <Pencil size={16} />
-                        </button>
-                        <button
-                          onClick={(e) => handleDeleteHotel(hotel.id, e)}
-                          style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center', color: '#ff4d4d', transition: 'opacity 0.2s' }}
-                          title="Delete Hotel"
-                          onMouseEnter={(e) => e.currentTarget.style.opacity = 0.7}
-                          onMouseLeave={(e) => e.currentTarget.style.opacity = 1}
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                        <span
-                          style={{
-                            background: '#d4edda',
-                            color: '#155724',
-                            borderRadius: '20px',
-                            padding: '4px 10px',
-                            fontSize: '11px',
-                            fontWeight: '600',
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.3px',
-                          }}
-                        >
-                          Active
-                        </span>
-                      </div>
-
-                      {/* Hotel Name */}
-                      <h4 style={{ margin: 0, fontSize: '18px', fontWeight: '700', color: '#1a1a1a', marginBottom: '4px' }}>
-                        {hotel.name}
-                      </h4>
-
-                      {/* Location */}
-                      <p style={{ margin: '0 0 16px 0', color: '#666', fontSize: '13px' }}>
-                        {hotel.address || 'No address provided'}
-                      </p>
-
-                      {/* Data Rows */}
-                      <div style={{ fontSize: '12px', lineHeight: '1.8', color: '#555', flex: 1 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <span style={{ color: '#888' }}>Phone</span>
-                          <span style={{ fontWeight: '500' }}>{hotel.phone || '—'}</span>
+                      <div style={{ padding: '20px' }}>
+                        {/* Top row: Icon, Actions, Active Pill */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                          <div style={{ width: '40px', height: '40px', background: '#ff8c42', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
+                            <Building2 size={20} />
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <button onClick={(e) => { e.stopPropagation(); setEditingHotel(hotel); setShowEditHotel(true); }} style={{ background: 'transparent', border: 'none', color: '#666', cursor: 'pointer' }}><Pencil size={16} /></button>
+                            <button onClick={(e) => handleDeleteHotel(hotel.id, e)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer' }}><Trash2 size={16} /></button>
+                            <span style={{ background: '#d4edda', color: '#155724', padding: '4px 10px', borderRadius: '12px', fontSize: '10px', fontWeight: '700', letterSpacing: '0.5px' }}>ACTIVE</span>
+                          </div>
                         </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px' }}>
-                          <span style={{ color: '#888' }}>Created</span>
-                          <span style={{ fontWeight: '500' }}>
-                            {hotel.created_at ? new Date(hotel.created_at).toLocaleDateString() : '—'}
+
+                        {/* Title & Location */}
+                        <h4 style={{ margin: '0 0 4px', fontSize: '18px', fontWeight: '700', color: '#1a1a1a' }}>{hotel.name}</h4>
+                        <p style={{ margin: 0, fontSize: '13px', color: '#666', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <MapPin size={14} /> {hotel.address || 'No address provided'}
+                        </p>
+
+                        {/* 3-Column Stats Footer */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginTop: '24px', paddingBottom: '16px', borderBottom: '1px solid #f0f0f0' }}>
+                          <div style={{ textAlign: 'center' }}>
+                            <p style={{ margin: '0 0 4px', fontSize: '14px', fontWeight: '700', color: '#1a1a1a' }}>{hotel.venues ?? 1}</p>
+                            <p style={{ margin: 0, fontSize: '11px', color: '#888' }}>Venues</p>
+                          </div>
+                          <div style={{ textAlign: 'center' }}>
+                            <p style={{ margin: '0 0 4px', fontSize: '14px', fontWeight: '700', color: '#1a1a1a' }}>{hotel.orders ?? 0}</p>
+                            <p style={{ margin: 0, fontSize: '11px', color: '#888' }}>Orders</p>
+                          </div>
+                          <div style={{ textAlign: 'center' }}>
+                            <p style={{ margin: '0 0 4px', fontSize: '14px', fontWeight: '700', color: '#ff6b35' }}>₹{(hotel.revenue || 0).toLocaleString()}</p>
+                            <p style={{ margin: 0, fontSize: '11px', color: '#888' }}>Revenue</p>
+                          </div>
+                        </div>
+
+                        {/* Manager Footer */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingTop: '12px' }}>
+                          <Users2 size={14} color="#888" />
+                          <span style={{ fontSize: '12px', color: '#666', fontWeight: '500' }}>
+                            {hotel.manager_name || 'No manager assigned'}
                           </span>
                         </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px' }}>
-                          <span style={{ color: '#888' }}>Hotel ID:</span>
-                          <span style={{ fontWeight: '500', color: '#0066cc' }}>{hotel.id}</span>
-                        </div>
-                      </div>
-
-                      {/* Manager Name at Bottom Corner */}
-                      <div style={{
-                        position: 'absolute',
-                        bottom: '16px',
-                        right: '16px',
-                        fontSize: '11px',
-                        color: '#888',
-                        fontWeight: '500',
-                        background: 'rgba(255, 255, 255, 0.9)',
-                        padding: '4px 8px',
-                        borderRadius: '6px',
-                        border: '1px solid #eee'
-                      }}>
-                        {hotel.manager_name ? `Manager: ${hotel.manager_name}` : 'No manager assigned'}
                       </div>
                     </div>
                   ))}
@@ -1032,9 +1045,9 @@ const AdminDashboard = () => {
           )}
 
           {activePage === 'managers' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div className="admin-page-mobile-wrapper" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               {/* Header */}
-              <div>
+              <div className="desktop-only">
                 <h2 style={{ margin: 0, fontSize: '28px', fontWeight: '700', marginBottom: '8px' }}>Managers</h2>
                 <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '14px' }}>
                   Manage hotel managers and their assignments
@@ -1076,7 +1089,7 @@ const AdminDashboard = () => {
                     borderRadius: '8px',
                     border: '1px solid var(--border-color)',
                     background: 'var(--surface)',
-                    color: 'var(--text-primary)',
+                    color: 'black',
                     fontSize: '14px',
                   }}
                 />
@@ -1119,133 +1132,105 @@ const AdminDashboard = () => {
                     return (
                       <div
                         key={manager.id}
+                        className="admin-mobile-card"
                         style={{
-                          background: '#FFFFFF',
-                          borderRadius: '12px',
                           padding: '20px',
-                          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          transition: 'all 0.25s ease',
                           cursor: 'pointer',
-                          position: 'relative',
+                          transition: 'all 0.2s',
+                          background: '#ffffff',
+                          borderRadius: '16px',
+                          border: '1px solid rgba(0,0,0,0.05)',
                         }}
                         onMouseEnter={(e) => {
-                          e.currentTarget.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.14)';
-                          e.currentTarget.style.transform = 'translateY(-4px)';
+                          e.currentTarget.style.transform = 'translateY(-2px)';
+                          e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.06)';
                         }}
                         onMouseLeave={(e) => {
-                          e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.08)';
                           e.currentTarget.style.transform = 'translateY(0)';
+                          e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.03)';
                         }}
                       >
-                        {/* Manager Avatar and Status */}
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-                          <div
-                            style={{
-                              width: '56px',
-                              height: '56px',
-                              borderRadius: '50%',
-                              background: bgColor,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              color: 'white',
-                              fontWeight: '700',
-                              fontSize: '20px',
-                            }}
-                          >
-                            {initials}
+                        {/* Top Row: Initials, Name, Pill, Actions */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+                          <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                            <div
+                              style={{
+                                width: '48px',
+                                height: '48px',
+                                borderRadius: '50%',
+                                background: bgColor,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: 'white',
+                                fontWeight: '700',
+                                fontSize: '18px',
+                              }}
+                            >
+                              {initials}
+                            </div>
+                            <div>
+                              <h4 style={{ margin: '0 0 4px', fontSize: '16px', fontWeight: '700', color: '#1a1a1a' }}>
+                                {manager.name}
+                              </h4>
+                              <span
+                                style={{
+                                  background: manager.is_active ? '#d4edda' : '#f8d7da',
+                                  color: manager.is_active ? '#155724' : '#856404',
+                                  borderRadius: '20px',
+                                  padding: '2px 8px',
+                                  fontSize: '10px',
+                                  fontWeight: '700',
+                                  textTransform: 'uppercase',
+                                  letterSpacing: '0.5px',
+                                }}
+                              >
+                                {manager.is_active ? 'ACTIVE' : 'INACTIVE'}
+                              </span>
+                            </div>
                           </div>
-                          <span
-                            style={{
-                              background: manager.is_active ? '#d4edda' : '#f8d7da',
-                              color: manager.is_active ? '#155724' : '#856404',
-                              borderRadius: '20px',
-                              padding: '4px 10px',
-                              fontSize: '11px',
-                              fontWeight: '600',
-                              textTransform: 'uppercase',
-                              letterSpacing: '0.3px',
-                            }}
-                          >
-                            {manager.is_active ? 'ACTIVE' : 'INACTIVE'}
-                          </span>
+
+                          {/* Action Buttons */}
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setEditingManager(manager); setShowEditManager(true); }}
+                              style={{ background: 'transparent', border: 'none', color: '#999', cursor: 'pointer', padding: '4px' }}
+                            >
+                              <Pencil size={16} />
+                            </button>
+                            <button
+                              onClick={(e) => handleDeleteManager(manager.id, e)}
+                              style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px' }}
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
                         </div>
 
-                        {/* Manager Name */}
-                        <h4 style={{ margin: 0, fontSize: '18px', fontWeight: '700', color: '#1a1a1a', marginBottom: '4px' }}>
-                          {manager.name}
-                        </h4>
-
-                        {/* Hotel Name */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '16px' }}>
-                          <Building2 size={16} color="#ff8c42" />
-                          <p style={{ margin: 0, color: '#666', fontSize: '13px', fontWeight: '500' }}>
-                            {manager.restaurant_name}
+                        {/* Assigned Hotel Card Block */}
+                        <div style={{ background: '#f8f9fa', borderRadius: '8px', padding: '12px', display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+                          <Building2 size={18} color="#ff8c42" />
+                          <p style={{ margin: 0, color: '#333', fontSize: '13px', fontWeight: '600' }}>
+                            {manager.restaurant_name || 'No Hotel Assigned'}
                           </p>
                         </div>
 
                         {/* Data Rows */}
-                        <div style={{ fontSize: '12px', lineHeight: '2', color: '#555', flex: 1, marginBottom: '8px' }}>
-                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                            <span style={{ color: '#888' }}>📧</span>
-                            <span style={{ fontWeight: '500', wordBreak: 'break-all' }}>{manager.email}</span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '12px', color: '#666' }}>
+                          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                            <span style={{ color: '#aaa' }}>✉️</span>
+                            <span style={{ wordBreak: 'break-all' }}>{manager.email}</span>
                           </div>
                           {manager.restaurant_phone && (
-                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                              <span style={{ color: '#888' }}>📱</span>
-                              <span style={{ fontWeight: '500' }}>{manager.restaurant_phone}</span>
+                            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                              <span style={{ color: '#aaa' }}>📞</span>
+                              <span>{manager.restaurant_phone}</span>
                             </div>
                           )}
-                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                            <span style={{ color: '#888' }}>👤</span>
-                            <span style={{ fontWeight: '500' }}>{manager.role}</span>
+                          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                            <span style={{ color: '#aaa' }}>👤</span>
+                            <span>Manager - {manager.created_at ? `Joined ${new Date(manager.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}` : ''}</span>
                           </div>
-                          {manager.created_at && (
-                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                              <span style={{ color: '#888' }}>📅</span>
-                              <span style={{ fontWeight: '500', fontSize: '11px' }}>
-                                Joined {new Date(manager.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Action Buttons */}
-                        <div style={{ position: 'absolute', top: '16px', right: '16px', display: 'flex', gap: '8px' }}>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); setEditingManager(manager); setShowEditManager(true); }}
-                            style={{
-                              background: 'transparent',
-                              border: 'none',
-                              color: '#999',
-                              cursor: 'pointer',
-                              padding: '4px',
-                              transition: 'color 0.2s',
-                            }}
-                            title="Edit Manager"
-                            onMouseEnter={(e) => e.currentTarget.style.color = 'var(--primary)'}
-                            onMouseLeave={(e) => e.currentTarget.style.color = '#999'}
-                          >
-                            <Pencil size={16} />
-                          </button>
-                          <button
-                            onClick={(e) => handleDeleteManager(manager.id, e)}
-                            style={{
-                              background: 'transparent',
-                              border: 'none',
-                              color: '#ff4d4d',
-                              cursor: 'pointer',
-                              padding: '4px',
-                              transition: 'opacity 0.2s',
-                            }}
-                            title="Delete Manager"
-                            onMouseEnter={(e) => e.currentTarget.style.opacity = 0.7}
-                            onMouseLeave={(e) => e.currentTarget.style.opacity = 1}
-                          >
-                            <Trash2 size={16} />
-                          </button>
                         </div>
                       </div>
                     );
@@ -1492,8 +1477,8 @@ const AdminDashboard = () => {
           )}
 
           {activePage === 'reports' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
-              <div>
+            <div className="admin-page-mobile-wrapper" style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
+              <div className="desktop-only">
                 <h2 style={{ margin: 0, fontSize: '32px', fontWeight: '700', marginBottom: '8px' }}>Reports & Analytics</h2>
                 <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '14px' }}>
                   Platform-wide performance insights
@@ -1543,11 +1528,12 @@ const AdminDashboard = () => {
 
               <div
                 style={{
-                  display: 'grid',
-                  gridTemplateColumns: '2fr 1fr',
+                  display: 'flex',
+                  flexDirection: 'column',
                   gap: '20px',
                   alignItems: 'stretch',
                 }}
+                className="reports-flex-grid"
               >
                 <div
                   style={{
@@ -1622,10 +1608,10 @@ const AdminDashboard = () => {
                       <div key={method.name} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <span style={{ fontSize: '14px', fontWeight: '600', color: '#111111' }}>{method.name}</span>
-                          <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{method.value}%</span>
+                          <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{method.percentage.toFixed(1)}%</span>
                         </div>
                         <div style={{ height: '10px', width: '100%', borderRadius: '999px', background: '#f4f4f6' }}>
-                          <div style={{ width: `${method.value}%`, height: '100%', borderRadius: '999px', background: method.color }} />
+                          <div style={{ width: `${method.percentage}%`, height: '100%', borderRadius: '999px', background: method.color }} />
                         </div>
                       </div>
                     ))}
@@ -1655,9 +1641,9 @@ const AdminDashboard = () => {
                   <thead>
                     <tr style={{ borderBottom: '1px solid rgba(15, 23, 42, 0.08)' }}>
                       <th style={{ textAlign: 'left', padding: '16px 0', fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '700' }}>Hotel</th>
-                      <th style={{ textAlign: 'right', padding: '16px 0', fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '700' }}>Revenue</th>
-                      <th style={{ textAlign: 'right', padding: '16px 0', fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '700' }}>Orders</th>
-                      <th style={{ textAlign: 'right', padding: '16px 0', fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '700' }}>Growth</th>
+                      <th className="desktop-only" style={{ textAlign: 'right', padding: '16px 0', fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '700' }}>Revenue</th>
+                      <th className="desktop-only" style={{ textAlign: 'right', padding: '16px 0', fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '700' }}>Orders</th>
+                      <th className="desktop-only" style={{ textAlign: 'right', padding: '16px 0', fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '700' }}>Growth</th>
                       <th style={{ textAlign: 'right', padding: '16px 0', fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '700' }}>Performance</th>
                     </tr>
                   </thead>
@@ -1665,11 +1651,11 @@ const AdminDashboard = () => {
                     {performanceRows.map((row, idx) => (
                       <tr key={idx} style={{ borderBottom: idx !== performanceRows.length - 1 ? '1px solid rgba(15, 23, 42, 0.08)' : 'none' }}>
                         <td style={{ padding: '18px 0', fontSize: '14px', color: '#111111', fontWeight: '600' }}>{row.hotel}</td>
-                        <td style={{ padding: '18px 0', textAlign: 'right', fontSize: '14px', fontWeight: '600' }}>{row.revenue}</td>
-                        <td style={{ padding: '18px 0', textAlign: 'right', fontSize: '14px', color: 'var(--text-secondary)' }}>{row.orders.toLocaleString()}</td>
-                        <td style={{ padding: '18px 0', textAlign: 'right', fontSize: '14px', color: '#2d7a4a', fontWeight: '700' }}>{row.growth}</td>
+                        <td className="desktop-only" style={{ padding: '18px 0', textAlign: 'right', fontSize: '14px', fontWeight: '600' }}>{row.revenue}</td>
+                        <td className="desktop-only" style={{ padding: '18px 0', textAlign: 'right', fontSize: '14px', color: 'var(--text-secondary)' }}>{row.orders.toLocaleString()}</td>
+                        <td className="desktop-only" style={{ padding: '18px 0', textAlign: 'right', fontSize: '14px', color: '#2d7a4a', fontWeight: '700' }}>{row.growth}</td>
                         <td style={{ padding: '18px 0', textAlign: 'right' }}>
-                          <div style={{ width: '120px', height: '10px', borderRadius: '999px', background: '#f4f4f6' }}>
+                          <div style={{ width: '100px', height: '10px', borderRadius: '999px', background: '#f4f4f6', marginLeft: 'auto' }}>
                             <div style={{ width: `${Math.min(Math.max(parseInt(row.growth.replace('+', '').replace('%', '')), 0), 100)}%`, height: '100%', borderRadius: '999px', background: '#ff8c42' }} />
                           </div>
                         </td>
@@ -1682,9 +1668,9 @@ const AdminDashboard = () => {
           )}
 
           {activePage === 'settings' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
+            <div className="admin-page-mobile-wrapper" style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+                <div className="desktop-only">
                   <h1 style={{ fontSize: '24px', fontWeight: '700', marginBottom: '4px', color: '#111827', margin: 0 }}>
                     System Settings
                   </h1>
@@ -1714,7 +1700,26 @@ const AdminDashboard = () => {
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                
+
+                {/* Profile Card */}
+                <div style={{ background: 'white', padding: '24px', borderRadius: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid rgba(15, 23, 42, 0.08)', boxShadow: '0 4px 20px rgba(15, 23, 42, 0.03)' }}>
+                  <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                    <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: '#ff6b35', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', fontWeight: 'bold' }}>
+                      SA
+                    </div>
+                    <div>
+                      <h3 style={{ margin: '0 0 4px', fontSize: '16px', fontWeight: '700', color: '#111827' }}>{user?.name || 'Super Admin'}</h3>
+                      <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-secondary)' }}>Platform Administrator</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleLogout}
+                    style={{ background: '#fff0ec', color: '#ff6b35', border: 'none', padding: '8px 16px', borderRadius: '20px', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }}
+                  >
+                    Sign out
+                  </button>
+                </div>
+
                 {/* General Section */}
                 <div style={{ background: '#FFFFFF', borderRadius: '16px', padding: '24px', border: '1px solid rgba(15, 23, 42, 0.08)', boxShadow: '0 4px 20px rgba(15, 23, 42, 0.03)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
@@ -1724,58 +1729,32 @@ const AdminDashboard = () => {
                     <h2 style={{ fontSize: '18px', fontWeight: '700', margin: 0 }}>General</h2>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Platform Name</label>
-                      <input type="text" defaultValue="Data Udipi" style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: '#FAFAFA', fontSize: '14px', color: '#111827', outline: 'none' }} />
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Support Email</label>
-                      <input type="email" defaultValue="support@dataudipi.com" style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: '#FAFAFA', fontSize: '14px', color: '#111827', outline: 'none' }} />
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Default Currency</label>
-                      <input type="text" defaultValue="INR (₹)" style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: '#FAFAFA', fontSize: '14px', color: '#111827', outline: 'none' }} />
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Timezone</label>
-                      <input type="text" defaultValue="Asia/Kolkata (IST)" style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: '#FAFAFA', fontSize: '14px', color: '#111827', outline: 'none' }} />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Notifications Section */}
-                <div style={{ background: '#FFFFFF', borderRadius: '16px', padding: '24px', border: '1px solid rgba(15, 23, 42, 0.08)', boxShadow: '0 4px 20px rgba(15, 23, 42, 0.03)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
-                    <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#10B981', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <Bell size={20} />
-                    </div>
-                    <h2 style={{ fontSize: '18px', fontWeight: '700', margin: 0 }}>Notifications</h2>
-                  </div>
-
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    {/* Dark Mode */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 0', borderBottom: '1px solid var(--border-color)' }}>
                       <div>
-                        <h4 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '4px', margin: 0, color: '#111827' }}>Email Notifications</h4>
-                        <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>Receive platform updates via email</p>
+                        <h4 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '4px', margin: 0, color: '#111827' }}>Dark Mode</h4>
+                        <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>Enable dark theme across the platform</p>
                       </div>
-                      <div style={{ width: '44px', height: '24px', background: '#ff6b35', borderRadius: '12px', position: 'relative', cursor: 'pointer' }}>
-                        <div style={{ width: '20px', height: '20px', background: 'white', borderRadius: '50%', position: 'absolute', top: '2px', left: '22px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }} />
+                      <div style={{ width: '44px', height: '24px', background: '#E2E8F0', borderRadius: '12px', position: 'relative', cursor: 'pointer' }}>
+                        <div style={{ width: '20px', height: '20px', background: 'white', borderRadius: '50%', position: 'absolute', top: '2px', left: '2px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }} />
                       </div>
                     </div>
+                    {/* Push Notifications */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 0', borderBottom: '1px solid var(--border-color)' }}>
                       <div>
                         <h4 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '4px', margin: 0, color: '#111827' }}>Push Notifications</h4>
-                        <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>Browser push notifications for critical alerts</p>
+                        <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>Receive alerts for critical updates</p>
                       </div>
                       <div style={{ width: '44px', height: '24px', background: '#ff6b35', borderRadius: '12px', position: 'relative', cursor: 'pointer' }}>
                         <div style={{ width: '20px', height: '20px', background: 'white', borderRadius: '50%', position: 'absolute', top: '2px', left: '22px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }} />
                       </div>
                     </div>
+                    {/* Auto-assign Managers */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 0' }}>
                       <div>
-                        <h4 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '4px', margin: 0, color: '#111827' }}>Order Alerts</h4>
-                        <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>Get notified for new orders across hotels</p>
+                        <h4 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '4px', margin: 0, color: '#111827' }}>Auto-assign Managers</h4>
+                        <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>Automatically link new venues</p>
                       </div>
                       <div style={{ width: '44px', height: '24px', background: '#ff6b35', borderRadius: '12px', position: 'relative', cursor: 'pointer' }}>
                         <div style={{ width: '20px', height: '20px', background: 'white', borderRadius: '50%', position: 'absolute', top: '2px', left: '22px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }} />
@@ -1822,16 +1801,24 @@ const AdminDashboard = () => {
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 0', borderBottom: '1px solid var(--border-color)' }}>
                       <div>
-                        <h4 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '4px', margin: 0, color: '#111827' }}>Automatic Backups</h4>
+                        <h4 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '4px', margin: 0, color: '#111827' }}>Daily Backups</h4>
                         <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>Schedule automatic database backups</p>
                       </div>
                       <div style={{ width: '44px', height: '24px', background: '#ff6b35', borderRadius: '12px', position: 'relative', cursor: 'pointer' }}>
                         <div style={{ width: '20px', height: '20px', background: 'white', borderRadius: '50%', position: 'absolute', top: '2px', left: '22px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }} />
                       </div>
                     </div>
-                    <div style={{ paddingTop: '24px' }}>
+                    <div style={{ padding: '16px 0', borderBottom: '1px solid var(--border-color)' }}>
                       <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Backup Frequency</label>
-                      <input type="text" defaultValue="Daily" style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: '#FAFAFA', fontSize: '14px', color: '#111827', outline: 'none' }} />
+                      <select style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: '#FAFAFA', fontSize: '14px', color: '#111827', outline: 'none' }}>
+                        <option>Daily at Midnight</option>
+                        <option>Weekly</option>
+                      </select>
+                    </div>
+                    <div style={{ paddingTop: '16px' }}>
+                      <button style={{ background: 'transparent', border: 'none', color: '#ef4444', fontWeight: '600', fontSize: '14px', padding: '0', cursor: 'pointer' }}>
+                        Export System Data
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1841,6 +1828,24 @@ const AdminDashboard = () => {
           )}
         </div>
       </div>
+
+      {/* Mobile Bottom Navigation */}
+      <div className="mobile-bottom-nav">
+        {menuItems.map((item) => {
+          const Icon = item.icon;
+          return (
+            <button
+              key={item.id}
+              className={activePage === item.id ? 'active' : ''}
+              onClick={() => setActivePage(item.id)}
+            >
+              <Icon size={20} />
+              <span>{item.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
       <VoiceWidget onNavigate={setActivePage} />
     </div>
   );

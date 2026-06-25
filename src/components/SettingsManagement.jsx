@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import {
   Store,
   Clock,
@@ -10,6 +12,8 @@ import {
 import { restaurantService, authService } from '../services/api';
 
 const SettingsManagement = () => {
+  const navigate = useNavigate();
+  const { logout } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [settings, setSettings] = useState({
@@ -80,6 +84,23 @@ const SettingsManagement = () => {
     }
   };
 
+  useEffect(() => {
+    const handleGlobalSave = () => {
+      handleSave();
+    };
+    window.addEventListener('save-settings', handleGlobalSave);
+    return () => window.removeEventListener('save-settings', handleGlobalSave);
+  }, [restaurantId, settings]);
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      navigate('/');
+    } catch (err) {
+      console.error("Logout failed", err);
+    }
+  };
+
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
 
@@ -108,9 +129,9 @@ const SettingsManagement = () => {
 
   // Helper component for toggle switches
   const ToggleSwitch = ({ label, description, name, checked }) => (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 0', borderBottom: '1px solid var(--border)' }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 0', borderBottom: description ? '1px solid var(--border)' : 'none' }}>
       <div>
-        <h4 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '4px' }}>{label}</h4>
+        <h4 style={{ fontSize: '14px', fontWeight: '600', marginBottom: description ? '4px' : '0' }}>{label}</h4>
         {description && <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{description}</p>}
       </div>
       <div
@@ -118,7 +139,7 @@ const SettingsManagement = () => {
         style={{
           width: '44px',
           height: '24px',
-          background: checked ? 'var(--primary)' : 'var(--border)',
+          background: checked ? '#ff6b35' : '#e5e7eb',
           borderRadius: '12px',
           position: 'relative',
           cursor: 'pointer',
@@ -134,7 +155,7 @@ const SettingsManagement = () => {
           top: '2px',
           left: checked ? '22px' : '2px',
           transition: 'left 0.3s',
-          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+          boxShadow: '0 2px 4px rgba(0,0,0,0.15)'
         }} />
       </div>
     </div>
@@ -163,8 +184,10 @@ const SettingsManagement = () => {
   };
 
   return (
-    <div style={{ padding: '24px', maxWidth: '1000px', margin: '0 auto', paddingBottom: '80px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
+    <div className="page-container manager-settings-container admin-page-mobile-wrapper" style={{ maxWidth: '1000px', margin: '0 auto', paddingBottom: '80px' }}>
+      
+      {/* Desktop Header */}
+      <div className="page-header desktop-only" style={{ marginBottom: '32px' }}>
         <div>
           <h1 style={{ fontSize: '24px', fontWeight: '700', marginBottom: '4px', color: '#111827' }}>
             System Settings
@@ -180,7 +203,7 @@ const SettingsManagement = () => {
             display: 'flex',
             alignItems: 'center',
             gap: '8px',
-            background: '#f8561cff',
+            background: '#ff6b35',
             color: 'white',
             padding: '10px 20px',
             borderRadius: '8px',
@@ -197,6 +220,101 @@ const SettingsManagement = () => {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        
+        {/* Mobile View */}
+        <div className="mobile-only-orders" style={{ display: 'flex', flexDirection: 'column', gap: '24px', padding: '0 24px' }}>
+          {/* Profile Card */}
+          <div style={{ background: 'white', padding: '24px', borderRadius: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #eee', boxShadow: '0 4px 12px rgba(0,0,0,0.02)' }}>
+            <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+              <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: '#ff6b35', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', fontWeight: 'bold' }}>
+                AS
+              </div>
+              <div>
+                <h3 style={{ margin: '0 0 4px', fontSize: '16px', fontWeight: '700' }}>Anand Sharma</h3>
+                <p style={{ margin: 0, fontSize: '12px', color: '#888' }}>Manager - {settings.name || 'Grand Udipi Palace'}</p>
+              </div>
+            </div>
+            <button 
+              onClick={handleLogout}
+              style={{ background: '#fff0ec', color: '#ff6b35', border: 'none', padding: '8px 16px', borderRadius: '20px', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }}
+            >
+              Sign out
+            </button>
+          </div>
+
+          {/* RESTAURANT INFO */}
+          <div>
+            <h4 style={{ fontSize: '12px', color: '#888', marginBottom: '12px', paddingLeft: '8px', letterSpacing: '1px' }}>RESTAURANT INFO</h4>
+            <div style={{ background: 'white', borderRadius: '16px', border: '1px solid #eee', overflow: 'hidden' }}>
+              <div style={{ padding: '16px', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                  <span style={{ fontSize: '11px', color: '#888', marginBottom: '4px' }}>Phone Number</span>
+                  <input type="text" name="phone" value={settings.phone} onChange={handleChange} style={{ border: 'none', fontSize: '14px', fontWeight: '500', outline: 'none', width: '100%', color: '#111' }} />
+                </div>
+              </div>
+              <div style={{ padding: '16px', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ fontSize: '11px', color: '#888', marginBottom: '4px' }}>Email</span>
+                  <span style={{ fontSize: '14px', fontWeight: '500', color: '#111' }}>contact@dataudipi.com</span>
+                </div>
+              </div>
+              <div style={{ padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                  <span style={{ fontSize: '11px', color: '#888', marginBottom: '4px' }}>Address</span>
+                  <input type="text" name="address" value={settings.address} onChange={handleChange} style={{ border: 'none', fontSize: '14px', fontWeight: '500', outline: 'none', width: '100%', color: '#111' }} />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* PREFERENCES */}
+          <div>
+            <h4 style={{ fontSize: '12px', color: '#888', marginBottom: '12px', paddingLeft: '8px', letterSpacing: '1px' }}>PREFERENCES</h4>
+            <div style={{ background: 'white', borderRadius: '16px', border: '1px solid #eee', overflow: 'hidden' }}>
+              <div style={{ padding: '16px', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '14px', fontWeight: '500' }}>Dark Mode</span>
+                <div style={{ width: '44px', height: '24px', background: '#e5e7eb', borderRadius: '12px', position: 'relative' }}>
+                   <div style={{ width: '20px', height: '20px', background: 'white', borderRadius: '50%', position: 'absolute', top: '2px', left: '2px', boxShadow: '0 2px 4px rgba(0,0,0,0.15)' }} />
+                </div>
+              </div>
+              <div style={{ padding: '0 16px', borderBottom: '1px solid #eee' }}>
+                <ToggleSwitch
+                  label="Notifications"
+                  name="order_notifications"
+                  checked={settings.order_notifications === 1}
+                />
+              </div>
+              <div style={{ padding: '0 16px' }}>
+                <ToggleSwitch
+                  label="Auto-print Bills"
+                  name="auto_print_bills"
+                  checked={settings.auto_print_bills === 1}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* APP SETTINGS */}
+          <div>
+            <h4 style={{ fontSize: '12px', color: '#888', marginBottom: '12px', paddingLeft: '8px', letterSpacing: '1px' }}>APP SETTINGS</h4>
+            <div style={{ background: 'white', borderRadius: '16px', border: '1px solid #eee', overflow: 'hidden' }}>
+              <div style={{ padding: '16px', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '14px', fontWeight: '500' }}>Language</span>
+                <span style={{ fontSize: '14px', color: '#888' }}>English</span>
+              </div>
+              <div style={{ padding: '16px', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '14px', fontWeight: '500' }}>Currency</span>
+                <span style={{ fontSize: '14px', color: '#888' }}>INR (₹)</span>
+              </div>
+              <div style={{ padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '14px', fontWeight: '500', color: '#ff6b35' }}>Help & Support</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Desktop View */}
+        <div className="desktop-only" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
 
         {/* Restaurant Information Card */}
         <div className="admin-card">
@@ -207,7 +325,7 @@ const SettingsManagement = () => {
             <h2 style={{ fontSize: '18px', fontWeight: '700' }}>Restaurant Information</h2>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+          <div className="grid-responsive-2" style={{ gap: '20px' }}>
             <div>
               <label style={labelStyle}>Restaurant Name</label>
               <input type="text" name="name" value={settings.name} onChange={handleChange} style={inputStyle} placeholder="Data Udipi" />
@@ -236,7 +354,7 @@ const SettingsManagement = () => {
             <h2 style={{ fontSize: '18px', fontWeight: '700' }}>Opening Hours</h2>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+          <div className="grid-responsive-2" style={{ gap: '20px' }}>
             <div>
               <label style={labelStyle}>Opening</label>
               <input type="time" name="opening_time" value={settings.opening_time} onChange={handleChange} style={inputStyle} />
@@ -303,7 +421,7 @@ const SettingsManagement = () => {
             />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '20px' }}>
+          <div className="grid-responsive" style={{ gap: '20px' }}>
             <div>
               <label style={labelStyle}>Tax Rate (%)</label>
               <input type="number" name="tax_rate" value={settings.tax_rate} onChange={handleChange} style={inputStyle} min="0" step="0.1" />
@@ -317,6 +435,8 @@ const SettingsManagement = () => {
               <input type="number" name="packaging_charge" value={settings.packaging_charge} onChange={handleChange} style={inputStyle} min="0" />
             </div>
           </div>
+        </div>
+
         </div>
 
       </div>

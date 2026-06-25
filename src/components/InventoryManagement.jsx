@@ -208,10 +208,10 @@ const InventoryManagement = () => {
   };
 
   return (
-    <div style={{ padding: '24px' }}>
+    <div className="admin-page-mobile-wrapper page-container">
       {/* Header section */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
-        <div>
+      <div className="page-header flex-center-between" style={{ marginBottom: '32px', flexWrap: 'wrap', gap: '16px' }}>
+        <div className="desktop-only">
           <h1 style={{ fontSize: '28px', fontWeight: '700', marginBottom: '8px' }}>Inventory</h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>
             {inventory.length} items tracked • {lowStockItems.length} low stock
@@ -259,7 +259,7 @@ const InventoryManagement = () => {
       </div>
 
       {/* Stats Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '24px', marginBottom: '32px' }}>
+      <div className="grid-responsive" style={{ marginBottom: '32px' }}>
         <div style={{ background: '#ffffff', border: '1px solid #eaeaea', borderRadius: '12px', padding: '24px', display: 'flex', alignItems: 'center', gap: '20px' }}>
           <div style={{ width: '48px', height: '48px', background: '#f5f5f5', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#333' }}>
             <Package size={24} />
@@ -313,8 +313,8 @@ const InventoryManagement = () => {
       </div>
 
       {/* Inventory Table */}
-      <div style={{ background: 'white', border: '1px solid #eaeaea', borderRadius: '12px', overflow: 'hidden' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <div className="scroll-x" style={{ background: 'white', border: '1px solid #eaeaea', borderRadius: '12px' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '800px' }}>
           <thead style={{ borderBottom: '1px solid #eaeaea' }}>
             <tr>
               <th style={{ padding: '16px 24px', textAlign: 'left', fontSize: '13px', color: 'var(--text-secondary)', fontWeight: '600' }}>Item</th>
@@ -402,11 +402,8 @@ const InventoryManagement = () => {
 
       {/* Add Item Modal */}
       {showAddModal && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0, 0, 0, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
-        }}>
-          <div style={{ background: 'white', borderRadius: '12px', width: '100%', maxWidth: '400px', padding: '24px' }}>
+        <div className="modal-overlay">
+          <div className="modal-content">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
               <h2 style={{ fontSize: '20px', fontWeight: '700' }}>Add New Item</h2>
               <button onClick={() => setShowAddModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}>
@@ -429,7 +426,7 @@ const InventoryManagement = () => {
                 />
               </div>
 
-              <div style={{ display: 'flex', gap: '16px', marginBottom: '24px' }}>
+              <div className="form-row" style={{ marginBottom: '24px' }}>
                 <div style={{ flex: 1 }}>
                   <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Open Stock</label>
                   <input
@@ -498,11 +495,8 @@ const InventoryManagement = () => {
 
       {/* Edit Item Modal */}
       {showEditModal && editingItem && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0, 0, 0, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
-        }}>
-          <div style={{ background: 'white', borderRadius: '12px', width: '100%', maxWidth: '400px', padding: '24px' }}>
+        <div className="modal-overlay">
+          <div className="modal-content">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
               <h2 style={{ fontSize: '20px', fontWeight: '700' }}>Edit Item</h2>
               <button onClick={() => setShowEditModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}>
@@ -524,7 +518,7 @@ const InventoryManagement = () => {
                 />
               </div>
 
-              <div style={{ display: 'flex', gap: '16px', marginBottom: '24px' }}>
+              <div className="form-row" style={{ marginBottom: '24px' }}>
                 <div style={{ flex: 1 }}>
                   <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Open Stock</label>
                   <input
@@ -593,19 +587,8 @@ const InventoryManagement = () => {
 
       {/* Scan Inventory Modal */}
       {showScanModal && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0, 0, 0, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
-        }}>
-          <div style={{
-            background: 'white',
-            borderRadius: '16px',
-            width: '100%',
-            maxWidth: scanResults ? '900px' : '500px',
-            maxHeight: '90vh',
-            overflowY: 'auto',
-            padding: '32px'
-          }}>
+        <div className="modal-overlay">
+          <div className="modal-content modal-content-lg" style={{ maxWidth: scanResults ? '900px' : '500px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
               <div>
                 <h2 style={{ fontSize: '24px', fontWeight: '700', marginBottom: '4px' }}>
@@ -636,7 +619,7 @@ const InventoryManagement = () => {
 
             {!scanResults ? (
               <form onSubmit={handleScanUpload}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '32px' }}>
+                <div className="grid-responsive-2" style={{ marginBottom: '32px' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '12px' }}>Front Side (Required)</label>
                     <div

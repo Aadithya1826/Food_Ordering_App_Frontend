@@ -97,8 +97,8 @@ const ReportsManagement = () => {
   ];
 
   return (
-    <div style={{ padding: '24px', maxWidth: '1400px', margin: '0 auto' }}>
-      <div style={{ marginBottom: '24px' }}>
+    <div className="page-container admin-page-mobile-wrapper" style={{ maxWidth: '1400px', margin: '0 auto' }}>
+      <div className="desktop-only" style={{ marginBottom: '24px' }}>
         <h1 style={{ fontSize: '24px', fontWeight: '700', marginBottom: '4px', color: 'black' }}>
           Reports & Analytics
         </h1>
@@ -108,12 +108,7 @@ const ReportsManagement = () => {
       </div>
 
       {/* Top Stat Cards */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-        gap: '20px',
-        marginBottom: '24px'
-      }}>
+      <div className="grid-responsive" style={{ marginBottom: '24px' }}>
         {statCards.map((card, idx) => {
           const Icon = card.icon;
           return (
@@ -164,12 +159,7 @@ const ReportsManagement = () => {
         })}
       </div>
 
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 350px',
-        gap: '24px',
-        marginBottom: '24px'
-      }}>
+      <div className="reports-charts-grid" style={{ marginBottom: '24px', display: 'grid', gap: '24px', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))' }}>
         {/* Weekly Revenue Chart */}
         <div style={{
           background: 'var(--surface)',
@@ -254,11 +244,7 @@ const ReportsManagement = () => {
         </div>
       </div>
 
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-        gap: '24px'
-      }}>
+      <div className="grid-responsive-2">
         {/* Top Selling Items */}
         <div style={{
           background: 'var(--surface)',

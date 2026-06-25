@@ -26,6 +26,25 @@ const MenuManagement = () => {
   const [generatingImageId, setGeneratingImageId] = useState(null);
 
   useEffect(() => {
+    const handleNavigateCategory = (e) => {
+      if (e.detail && e.detail.category) {
+        const searchCat = e.detail.category.toLowerCase();
+        // Try to find the exact category name to ensure the tab highlights correctly
+        const matchedCategory = categories.find(c => c.name.toLowerCase().includes(searchCat));
+        
+        if (matchedCategory) {
+          setActiveCategory(matchedCategory.name);
+        } else {
+          setActiveCategory(e.detail.category); // fallback
+        }
+      }
+    };
+
+    window.addEventListener('navigate-menu-category', handleNavigateCategory);
+    return () => window.removeEventListener('navigate-menu-category', handleNavigateCategory);
+  }, [categories]);
+
+  useEffect(() => {
     fetchData();
   }, []);
 
@@ -54,6 +73,21 @@ const MenuManagement = () => {
     } catch (error) {
       console.error('Error updating item availability', error);
       alert('Failed to update availability.');
+    }
+  };
+
+  const handleUpdateQuantity = async (item, change) => {
+    const newQuantity = Math.max(0, (item.quantity || 0) + change);
+    if (newQuantity === item.quantity) return;
+    
+    try {
+      const updatedItem = await menuService.updateItem(item.id, {
+        quantity: newQuantity,
+      });
+      setItems(items.map(i => i.id === item.id ? updatedItem : i));
+    } catch (error) {
+      console.error('Error updating quantity:', error);
+      alert('Failed to update quantity.');
     }
   };
 
@@ -145,7 +179,9 @@ const MenuManagement = () => {
     
     let matchesCategory = true;
     if (activeCategory !== 'All') {
-      const categoryObj = categories.find(c => c.name === activeCategory);
+      // Find category case-insensitively and allowing partial matches (e.g., 'noodle' matching 'Noodles')
+      const searchCat = activeCategory.toLowerCase();
+      const categoryObj = categories.find(c => c.name.toLowerCase().includes(searchCat));
       matchesCategory = categoryObj && item.category_id === categoryObj.id;
     }
     
@@ -155,12 +191,58 @@ const MenuManagement = () => {
   const availableCount = items.filter(i => i.is_available).length;
 
   return (
-    <div style={{ padding: '24px 40px', fontFamily: "'Inter', sans-serif" }}>
+    <div className="admin-page-mobile-wrapper page-container">
+      <style>{`
+        @media (max-width: 1024px) {
+          .manager-menu-grid {
+            display: grid !important;
+            grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)) !important;
+            gap: 12px !important;
+          }
+          .mobile-search-filter {
+            margin-top: 8px;
+            margin-bottom: 16px !important;
+          }
+          .menu-card-image {
+            height: 96px !important;
+          }
+          .menu-card-content {
+            padding: 8px !important;
+          }
+          .menu-card-title {
+            font-size: 12px !important;
+            margin-bottom: 2px !important;
+          }
+          .menu-card-desc {
+            font-size: 9px !important;
+            margin-bottom: 8px !important;
+            -webkit-line-clamp: 2 !important;
+          }
+          .menu-card-price {
+            font-size: 13px !important;
+          }
+          .menu-card-badge {
+            font-size: 9px !important;
+            padding: 3px 6px !important;
+            border-radius: 6px !important;
+          }
+          .menu-card-rating {
+            font-size: 9px !important;
+            padding: 3px 6px !important;
+            border-radius: 6px !important;
+          }
+          .menu-categories-scroll {
+            margin: 0 -16px !important;
+            padding-left: 16px !important;
+            padding-right: 16px !important;
+          }
+        }
+      `}</style>
       {/* Header Area */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
+      <div className="page-header desktop-only" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <div>
-          <h1 style={{ fontSize: '28px', fontWeight: '700', marginBottom: '8px', color: '#111827' }}>Menu Management</h1>
-          <p style={{ color: '#6B7280', fontSize: '14px' }}>
+          <h1 style={{ fontSize: '28px', fontWeight: '700', margin: '0 0 8px 0', color: '#111827' }}>Menu Management</h1>
+          <p style={{ color: '#6B7280', fontSize: '14px', margin: 0 }}>
             {items.length} items · {availableCount} available
           </p>
         </div>
@@ -194,44 +276,46 @@ const MenuManagement = () => {
       </div>
 
       {/* Search and Filters */}
-      <div style={{ marginBottom: '32px' }}>
-        <div style={{ position: 'relative', maxWidth: '600px', marginBottom: '20px' }}>
-          <Search size={20} color="#9CA3AF" style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)' }} />
+      <div className="mobile-search-filter" style={{ marginBottom: '32px', width: '100%', minWidth: 0 }}>
+        <div style={{ position: 'relative', maxWidth: '600px', marginBottom: '16px' }}>
+          <Search size={16} color="#9CA3AF" style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)' }} />
           <input
             type="text"
-            placeholder="Search menu items..."
+            placeholder="Search menu item"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             style={{
               width: '100%',
-              padding: '14px 16px 14px 48px',
-              borderRadius: '12px',
+              padding: '12px 16px 12px 42px',
+              borderRadius: '24px',
               border: '1px solid #E5E7EB',
-              fontSize: '15px',
+              fontSize: '13px',
               outline: 'none',
               boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
               transition: 'border-color 0.2s',
+              boxSizing: 'border-box'
             }}
             onFocus={(e) => e.target.style.borderColor = '#ff5722'}
             onBlur={(e) => e.target.style.borderColor = '#E5E7EB'}
           />
         </div>
 
-        <div style={{ display: 'flex', gap: '12px', overflowX: 'auto', paddingBottom: '8px' }}>
+        <div className="scroll-x menu-categories-scroll" style={{ display: 'flex', gap: '8px', paddingBottom: '4px', msOverflowStyle: 'none', scrollbarWidth: 'none' }}>
           {['All', ...categories.map(c => c.name)].map((cat) => (
             <button
               key={cat}
               onClick={() => setActiveCategory(cat)}
               style={{
-                padding: '8px 20px',
-                borderRadius: '20px',
+                padding: '6px 16px',
+                borderRadius: '24px',
                 border: activeCategory === cat ? 'none' : '1px solid #E5E7EB',
-                background: activeCategory === cat ? '#ff5722' : 'white',
-                color: activeCategory === cat ? 'white' : '#4B5563',
-                fontSize: '14px',
-                fontWeight: '500',
+                background: activeCategory === cat ? '#FF5722' : 'white',
+                color: activeCategory === cat ? 'white' : '#111',
+                fontSize: '13px',
+                fontWeight: '600',
                 cursor: 'pointer',
                 whiteSpace: 'nowrap',
+                flexShrink: 0,
                 transition: 'all 0.2s ease',
               }}
             >
@@ -245,30 +329,31 @@ const MenuManagement = () => {
       {loading ? (
         <p style={{ color: '#6B7280' }}>Loading menu items...</p>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '24px' }}>
+        <div className="grid-responsive manager-menu-grid" style={{ minWidth: 0, width: '100%' }}>
           {filteredItems.map((item) => (
-            <div key={item.id} style={{
+            <div key={item.id} className="manager-menu-item-card" style={{
               background: 'white',
               borderRadius: '16px',
               overflow: 'hidden',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
-              border: '1px solid rgba(0,0,0,0.05)',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.03)',
+              border: '1px solid rgba(0,0,0,0.03)',
               display: 'flex',
-              flexDirection: 'column'
+              flexDirection: 'column',
+              minWidth: 0
             }}>
               {/* Image Area */}
-              <div style={{
-                height: '180px',
-                background: 'linear-gradient(45deg, #f3f4f6, #e5e7eb)',
+              <div className="menu-card-image" style={{
                 position: 'relative',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                overflow: 'hidden'
+                overflow: 'hidden',
+                backgroundColor: '#f3f4f6',
+                height: '180px'
               }}>
                 {item.image_url ? (
                   <img 
-                    src={`http://localhost:8000${item.image_url}`}
+                    src={item.image_url.startsWith('/') ? `http://localhost:8000${item.image_url}` : item.image_url}
                     alt={item.name}
                     style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                     onError={(e) => { e.target.style.display = 'none'; }}
@@ -276,141 +361,133 @@ const MenuManagement = () => {
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
                     <span style={{ fontSize: '13px', color: '#9CA3AF', fontWeight: '500' }}>No Image</span>
-                    <button 
-                      onClick={() => handleGenerateImage(item.id)}
-                      disabled={generatingImageId === item.id}
-                      style={{
-                        background: 'white', 
-                        border: '1px solid #E5E7EB', 
-                        borderRadius: '16px', 
-                        padding: '6px 12px', 
-                        fontSize: '12px', 
-                        fontWeight: '600',
-                        color: generatingImageId === item.id ? '#9CA3AF' : '#ff5722',
-                        cursor: generatingImageId === item.id ? 'not-allowed' : 'pointer', 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        gap: '6px',
-                        boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
-                        transition: 'all 0.2s'
-                      }}
-                      onMouseOver={(e) => { if (generatingImageId !== item.id) e.currentTarget.style.borderColor = '#ff5722'; }}
-                      onMouseOut={(e) => { e.currentTarget.style.borderColor = '#E5E7EB'; }}
-                    >
-                      <Star size={14} color={generatingImageId === item.id ? '#9CA3AF' : '#ff5722'} />
-                      {generatingImageId === item.id ? 'Generating...' : 'Generate Image'}
-                    </button>
                   </div>
                 )}
                 
                 {/* Popular Badge overlay */}
                 {item.id % 3 === 0 && ( // Just simulating some popular items
-                  <div style={{
+                  <div className="menu-card-badge" style={{
                     position: 'absolute',
-                    top: '12px',
-                    left: '12px',
-                    background: '#ff5722',
+                    top: '8px',
+                    left: '8px',
+                    background: '#FF5722',
                     color: 'white',
                     padding: '4px 10px',
                     borderRadius: '12px',
-                    fontSize: '11px',
-                    fontWeight: '600',
+                    fontSize: '12px',
+                    fontWeight: '700',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '4px',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
                   }}>
-                    <Star fill="white" size={10} /> Popular
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0011 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 11-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 002.5 2.5z"/></svg> Popular
                   </div>
                 )}
 
                 {/* Rating Overlay */}
-                <div style={{
+                <div className="menu-card-rating" style={{
                   position: 'absolute',
-                  bottom: '12px',
-                  left: '12px',
-                  background: 'rgba(0,0,0,0.7)',
+                  bottom: '8px',
+                  left: '8px',
+                  background: '#000',
                   color: 'white',
-                  padding: '4px 8px',
+                  padding: '4px 10px',
                   borderRadius: '12px',
                   fontSize: '12px',
-                  fontWeight: '600',
+                  fontWeight: '700',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '4px'
                 }}>
-                  <Star fill="#FBBF24" color="#FBBF24" size={12} /> 4.8
+                  <Star fill="#FBBF24" color="#FBBF24" size={10} /> 4.8
                 </div>
                 
                 {/* Price Overlay */}
-                <div style={{
+                <div className="menu-card-price" style={{
                   position: 'absolute',
-                  bottom: '12px',
-                  right: '12px',
+                  bottom: '8px',
+                  right: '8px',
                   color: 'white',
                   fontSize: '18px',
-                  fontWeight: '700',
-                  textShadow: '0 2px 4px rgba(0,0,0,0.5)'
+                  fontWeight: '800',
+                  textShadow: '0 2px 8px rgba(0,0,0,0.8)'
                 }}>
                   ₹{item.price}
                 </div>
               </div>
 
               {/* Content Area */}
-              <div style={{ padding: '20px', flex: 1, display: 'flex', flexDirection: 'column' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                  <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#111827' }}>{item.name}</h3>
-                  <span style={{ fontSize: '12px', fontWeight: '600', color: '#ff5722', background: '#fff0ec', padding: '2px 8px', borderRadius: '10px' }}>
-                    Qty: {item.quantity || 0}
-                  </span>
-                </div>
-                <p style={{ color: '#6B7280', fontSize: '13px', lineHeight: '1.5', flex: 1, marginBottom: '20px' }}>
-                  {item.description || "A delicious addition to our menu."}
-                </p>
+              <div className="menu-card-content" style={{ padding: '16px', display: 'flex', flexDirection: 'column', flex: 1 }}>
+                <h3 className="menu-card-title" style={{ fontSize: '18px', fontWeight: '800', color: '#111', margin: '0 0 8px 0', lineHeight: '1.2' }}>{item.name}</h3>
                 
-                {/* Actions Footer */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #F3F4F6', paddingTop: '16px' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                    {/* Toggle Switch */}
-                    <div style={{
-                      width: '36px',
-                      height: '20px',
-                      background: item.is_available ? '#0a8035' : '#E5E7EB',
-                      borderRadius: '10px',
-                      position: 'relative',
-                      transition: 'background 0.2s'
-                    }}>
-                      <div style={{
-                        width: '16px',
-                        height: '16px',
-                        background: 'white',
-                        borderRadius: '50%',
-                        position: 'absolute',
-                        top: '2px',
-                        left: item.is_available ? '18px' : '2px',
-                        transition: 'left 0.2s',
-                        boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
-                      }} />
+                <p className="menu-card-desc" style={{ 
+                  color: '#888', 
+                  fontSize: '13px', 
+                  lineHeight: '1.4',
+                  margin: '0 0 16px 0',
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden',
+                  fontWeight: '500'
+                }}>
+                  {item.description || 'Crispy golden crepe filled with spiced potato, served with...'}
+                </p>
+
+                <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '10px', borderTop: '1px solid #f5f5f5', paddingTop: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                      <div style={{ position: 'relative', width: '32px', height: '18px', background: item.is_available ? '#10B981' : '#E5E7EB', borderRadius: '9px', transition: 'background 0.2s', flexShrink: 0 }}>
+                        <div style={{ position: 'absolute', top: '2px', left: item.is_available ? '16px' : '2px', width: '14px', height: '14px', background: 'white', borderRadius: '50%', transition: 'left 0.2s' }} />
+                      </div>
+                      <span style={{ fontSize: '11px', fontWeight: '700', color: '#111' }}>
+                        Avail
+                      </span>
+                      <input 
+                        type="checkbox" 
+                        checked={item.is_available}
+                        onChange={() => handleToggleAvailable(item)}
+                        style={{ display: 'none' }}
+                      />
+                    </label>
+                    
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      <button 
+                        onClick={() => openEditModal(item)}
+                        style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', color: '#6B7280', display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: 'auto', minHeight: 'auto', width: '24px', height: '24px' }}
+                      >
+                        <Edit2 size={16} />
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteItem(item.id)}
+                        style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', color: '#EF4444', display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: 'auto', minHeight: 'auto', width: '24px', height: '24px' }}
+                      >
+                        <Trash2 size={16} />
+                      </button>
                     </div>
-                    {/* Hidden actual checkbox to trigger the change visually and logic */}
-                    <input 
-                      type="checkbox" 
-                      style={{ display: 'none' }} 
-                      checked={item.is_available} 
-                      onChange={() => handleToggleAvailable(item)}
-                    />
-                    <span style={{ fontSize: '13px', fontWeight: '600', color: item.is_available ? '#0a8035' : '#9CA3AF' }}>
-                      {item.is_available ? 'Available' : 'Sold Out'}
-                    </span>
-                  </label>
-                  
-                  <div style={{ display: 'flex', gap: '12px', color: '#9CA3AF' }}>
-                    <button onClick={() => openEditModal(item)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }} aria-label="Edit">
-                      <Edit2 size={16} color="#9CA3AF" />
-                    </button>
-                    <button onClick={() => handleDeleteItem(item.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }} aria-label="Delete">
-                      <Trash2 size={16} color="#ef4444" />
-                    </button>
+                  </div>
+
+                  {/* Quantity Control */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#F3F4F6', padding: '4px 8px', borderRadius: '6px' }}>
+                    <span style={{ fontSize: '11px', fontWeight: '600', color: '#4B5563' }}>Qty:</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <button 
+                        onClick={() => handleUpdateQuantity(item, -1)}
+                        style={{ width: '24px', height: '24px', minWidth: '24px', minHeight: '24px', borderRadius: '4px', background: 'white', border: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#111', padding: 0, fontSize: '14px', fontWeight: 'bold' }}
+                      >
+                        -
+                      </button>
+                      <span style={{ fontSize: '12px', fontWeight: '700', color: '#111', minWidth: '16px', textAlign: 'center' }}>
+                        {item.quantity || 0}
+                      </span>
+                      <button 
+                        onClick={() => handleUpdateQuantity(item, 1)}
+                        style={{ width: '24px', height: '24px', minWidth: '24px', minHeight: '24px', borderRadius: '4px', background: 'white', border: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#111', padding: 0, fontSize: '14px', fontWeight: 'bold' }}
+                      >
+                        +
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -421,28 +498,9 @@ const MenuManagement = () => {
 
       {/* Add Item Modal Overlay */}
       {isModalOpen && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0,0,0,0.5)',
-          backdropFilter: 'blur(4px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000
-        }}>
+        <div className="modal-overlay">
           {/* Modal Container */}
-          <div style={{
-            background: 'white',
-            borderRadius: '20px',
-            width: '100%',
-            maxWidth: '480px',
-            padding: '32px',
-            boxShadow: '0 20px 40px rgba(0,0,0,0.2)'
-          }}>
+          <div className="modal-content">
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '32px' }}>
               <div style={{ background: '#ff5722', color: 'white', width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 {editingItem ? <Edit2 size={20} /> : <Plus size={20} />}
