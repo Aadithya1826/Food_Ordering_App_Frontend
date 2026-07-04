@@ -205,6 +205,17 @@ export const menuService = {
     const response = await api.delete(`/api/v1/menu/items/${itemId}`);
     return response.data;
   },
+
+  uploadImage: async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await api.post('/api/v1/menu/upload-image', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
 };
 
 export const orderService = {

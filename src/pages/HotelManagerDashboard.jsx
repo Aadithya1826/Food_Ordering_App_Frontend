@@ -220,7 +220,7 @@ const HotelManagerDashboard = () => {
               .mobile-only-banner { display: none !important; }
             }
             @media (max-width: 1024px) {
-              .manager-header-mobile { display: flex !important; flex-direction: column; padding: 24px 24px 32px 24px; background: #0A0A0A; border-radius: 0 0 32px 32px; margin-bottom: -16px; position: sticky; top: 0; z-index: 100; }
+              .manager-header-mobile { display: flex !important; flex-direction: column; box-sizing: border-box; width: 100%; padding: 24px 24px 32px 24px; background: #0A0A0A; border-radius: 0 0 32px 32px; margin-bottom: -16px; position: sticky; top: 0; z-index: 100; }
               .manager-header-mobile-top { display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 24px; }
               .manager-header-mobile img { height: 24px; }
               .manager-header-mobile .badge { background: rgba(16, 185, 129, 0.15); color: #10B981; border: 1px solid rgba(16, 185, 129, 0.2); padding: 4px 12px; border-radius: 16px; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; }

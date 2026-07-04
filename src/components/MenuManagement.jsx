@@ -15,6 +15,7 @@ const MenuManagement = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [newItem, setNewItem] = useState({
+    item_code: '',
     name: '',
     category_id: '',
     price: '',
@@ -24,6 +25,7 @@ const MenuManagement = () => {
   });
   const [submitting, setSubmitting] = useState(false);
   const [generatingImageId, setGeneratingImageId] = useState(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   useEffect(() => {
     const handleNavigateCategory = (e) => {
@@ -91,6 +93,23 @@ const MenuManagement = () => {
     }
   };
 
+  const handleImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setIsUploadingImage(true);
+      const data = await menuService.uploadImage(file);
+      setNewItem({ ...newItem, image_url: data.image_url });
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      alert('Failed to upload image.');
+    } finally {
+      setIsUploadingImage(false);
+      e.target.value = '';
+    }
+  };
+
   const handleGenerateImage = async (itemId) => {
     setGeneratingImageId(itemId);
     try {
@@ -115,6 +134,7 @@ const MenuManagement = () => {
     try {
       if (editingItem) {
         const updatedItem = await menuService.updateItem(editingItem.id, {
+          item_code: newItem.item_code || null,
           name: newItem.name,
           category_id: parseInt(newItem.category_id),
           price: parseFloat(newItem.price),
@@ -125,6 +145,7 @@ const MenuManagement = () => {
         setItems(items.map(i => i.id === editingItem.id ? updatedItem : i));
       } else {
         const createdItem = await menuService.createItem({
+          item_code: newItem.item_code || null,
           name: newItem.name,
           category_id: parseInt(newItem.category_id),
           price: parseFloat(newItem.price),
@@ -158,6 +179,7 @@ const MenuManagement = () => {
   const openEditModal = (item) => {
     setEditingItem(item);
     setNewItem({
+      item_code: item.item_code || '',
       name: item.name,
       category_id: item.category_id,
       price: item.price,
@@ -171,11 +193,12 @@ const MenuManagement = () => {
   const closeModal = () => {
     setIsModalOpen(false);
     setEditingItem(null);
-    setNewItem({ name: '', category_id: '', price: '', description: '', quantity: '0', image_url: '' });
+    setNewItem({ item_code: '', name: '', category_id: '', price: '', description: '', quantity: '0', image_url: '' });
   };
 
   const filteredItems = items.filter(item => {
-    const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          (item.item_code && item.item_code.toLowerCase().includes(searchQuery.toLowerCase()));
     
     let matchesCategory = true;
     if (activeCategory !== 'All') {
@@ -419,6 +442,11 @@ const MenuManagement = () => {
 
               {/* Content Area */}
               <div className="menu-card-content" style={{ padding: '16px', display: 'flex', flexDirection: 'column', flex: 1 }}>
+                {item.item_code && (
+                  <div style={{ display: 'inline-block', background: '#F3F4F6', color: '#4B5563', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold', marginBottom: '6px', alignSelf: 'flex-start' }}>
+                    ID: {item.item_code}
+                  </div>
+                )}
                 <h3 className="menu-card-title" style={{ fontSize: '18px', fontWeight: '800', color: '#111', margin: '0 0 8px 0', lineHeight: '1.2' }}>{item.name}</h3>
                 
                 <p className="menu-card-desc" style={{ 
@@ -512,6 +540,28 @@ const MenuManagement = () => {
             
             <form onSubmit={handleAddItem}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: '32px' }}>
+                {/* Item ID */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>
+                    Item ID (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={newItem.item_code}
+                    onChange={(e) => setNewItem({...newItem, item_code: e.target.value})}
+                    placeholder="e.g. ITM-001"
+                    style={{
+                      width: '100%',
+                      padding: '12px 16px',
+                      borderRadius: '12px',
+                      border: '1px solid #E5E7EB',
+                      fontSize: '15px',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+                
                 {/* Item Name */}
                 <div>
                   <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>
@@ -652,7 +702,7 @@ const MenuManagement = () => {
                       </button>
                     )}
                   </label>
-                  <div style={{ display: 'flex', gap: '12px' }}>
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                     <input
                       type="text"
                       value={newItem.image_url}
@@ -668,6 +718,29 @@ const MenuManagement = () => {
                         boxSizing: 'border-box'
                       }}
                     />
+                    <label style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '8px',
+                      background: '#F3F4F6', 
+                      padding: '12px 16px', 
+                      borderRadius: '12px', 
+                      cursor: isUploadingImage ? 'not-allowed' : 'pointer',
+                      border: '1px solid #E5E7EB',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      color: '#4B5563',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        style={{ display: 'none' }} 
+                        onChange={handleImageUpload}
+                        disabled={isUploadingImage}
+                      />
+                      {isUploadingImage ? 'Uploading...' : 'Upload Image'}
+                    </label>
                   </div>
                   {/* Image Preview */}
                   {newItem.image_url && (
