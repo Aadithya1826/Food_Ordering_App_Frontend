@@ -376,7 +376,7 @@ const MenuManagement = () => {
               }}>
                 {item.image_url ? (
                   <img 
-                    src={item.image_url.startsWith('/') ? `http://localhost:8000${item.image_url}` : item.image_url}
+                    src={item.image_url.startsWith('/') ? `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}${item.image_url}` : item.image_url}
                     alt={item.name}
                     style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                     onError={(e) => { e.target.style.display = 'none'; }}
@@ -746,7 +746,7 @@ const MenuManagement = () => {
                   {newItem.image_url && (
                     <div style={{ marginTop: '12px', borderRadius: '12px', overflow: 'hidden', height: '120px', border: '1px solid #E5E7EB', background: '#f3f4f6' }}>
                       <img 
-                        src={newItem.image_url.startsWith('/') ? `http://localhost:8000${newItem.image_url}` : newItem.image_url} 
+                        src={newItem.image_url.startsWith('/') ? `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}${newItem.image_url}` : newItem.image_url} 
                         alt="Preview" 
                         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                         onError={(e) => { e.target.style.display = 'none'; }}
