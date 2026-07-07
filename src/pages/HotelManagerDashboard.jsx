@@ -456,8 +456,8 @@ const HotelManagerDashboard = () => {
                   <p style={{ color: '#888', fontSize: '13px' }}>No live orders.</p>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {orders.slice(0, 5).map((order, idx) => {
-                      const orderItems = order.items?.map(i => `${i.name} x${i.quantity}`).join(', ') || 'Various items';
+                    {[...orders].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 5).map((order, idx) => {
+                      const orderItems = order.items?.length > 0 ? order.items.map(i => `${i.name} x${i.quantity}`).join(', ') : 'Various items';
 
                       let statusBg = '#e5e7eb';
                       let statusColor = '#4b5563';
