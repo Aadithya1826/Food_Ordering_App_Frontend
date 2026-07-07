@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Plus, Star, Edit2, Trash2 } from 'lucide-react';
-import { menuService } from '../services/api';
+import { menuService, rewriteImageUrl } from '../services/api';
 
 const MenuManagement = () => {
   const [items, setItems] = useState([]);
@@ -376,7 +376,7 @@ const MenuManagement = () => {
               }}>
                 {item.image_url ? (
                   <img 
-                    src={item.image_url.startsWith('/') ? `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}${item.image_url}` : item.image_url}
+                    src={rewriteImageUrl(item.image_url.startsWith('/') ? `${window.location.origin}${item.image_url}` : item.image_url)}
                     alt={item.name}
                     style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                     onError={(e) => { e.target.style.display = 'none'; }}
@@ -746,8 +746,8 @@ const MenuManagement = () => {
                   {newItem.image_url && (
                     <div style={{ marginTop: '12px', borderRadius: '12px', overflow: 'hidden', height: '120px', border: '1px solid #E5E7EB', background: '#f3f4f6' }}>
                       <img 
-                        src={newItem.image_url.startsWith('/') ? `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}${newItem.image_url}` : newItem.image_url} 
-                        alt="Preview" 
+                        src={rewriteImageUrl(newItem.image_url.startsWith('/') ? `${window.location.origin}${newItem.image_url}` : newItem.image_url)}
+                        alt="Preview"
                         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                         onError={(e) => { e.target.style.display = 'none'; }}
                       />

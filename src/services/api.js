@@ -1,7 +1,9 @@
 import axios from 'axios';
 import { toast } from '../components/Toast';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// Empty string = same-origin (nginx proxies /api/ → backend), which avoids all CORS issues.
+// Falls back to the explicit API URL if provided (e.g. during local dev without nginx).
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -10,6 +12,16 @@ const api = axios.create({
     'Content-Type': 'application/json',
   },
 });
+
+/**
+ * Rewrites image URLs that the backend returns as "http://localhost:8000/static/..."
+ * to same-origin "/static/..." so the browser can load them via the nginx proxy.
+ */
+export function rewriteImageUrl(url) {
+  if (!url) return url;
+  // Replace any absolute URL pointing at localhost:8000 with a relative path
+  return url.replace(/^https?:\/\/localhost(:\d+)?\//, '/');
+}
 
 // Add token to requests if available
 api.interceptors.request.use((config) => {
