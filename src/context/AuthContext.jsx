@@ -17,11 +17,11 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
   }, []);
 
-  const login = async (email, password) => {
+  const login = async (email, password, role = undefined) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await authService.login(email, password);
+      const response = await authService.login(email, password, role);
       setUser(response.user);
       return response;
     } catch (err) {

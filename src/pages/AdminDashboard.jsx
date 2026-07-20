@@ -57,6 +57,34 @@ const AdminDashboard = () => {
   const [reports, setReports] = useState(null);
   const [reportsLoading, setReportsLoading] = useState(true);
 
+  const [adminSettings, setAdminSettings] = useState({
+    darkMode: false,
+    pushNotifications: true,
+    autoAssignManagers: false,
+    twoFactorAuth: false,
+    sessionTimeout: '30 mins',
+    dailyBackups: true,
+    backupFrequency: 'Daily at Midnight'
+  });
+
+  const handleSettingToggle = (key) => {
+    setAdminSettings(prev => {
+      const newValue = !prev[key];
+      if (key === 'darkMode') {
+        if (newValue) {
+          document.body.classList.add('dark-theme');
+        } else {
+          document.body.classList.remove('dark-theme');
+        }
+      }
+      return { ...prev, [key]: newValue };
+    });
+  };
+
+  const handleSettingChange = (key, value) => {
+    setAdminSettings(prev => ({ ...prev, [key]: value }));
+  };
+
   // Editing states
   const [showEditHotel, setShowEditHotel] = useState(false);
   const [editingHotel, setEditingHotel] = useState(null);
@@ -897,7 +925,7 @@ const AdminDashboard = () => {
                           value={newHotel.name}
                           onChange={handleNewHotelChange}
                           placeholder="Enter hotel name"
-                          style={{ padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--surface)', color: 'var(--text-primary)' }}
+                          style={{ padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--surface)', color: 'black' }}
                         />
                       </label>
                       <label style={{ display: 'grid', gap: '8px', fontSize: '13px', color: 'var(--text-secondary)' }}>
@@ -908,7 +936,7 @@ const AdminDashboard = () => {
                           value={newHotel.address}
                           onChange={handleNewHotelChange}
                           placeholder="Enter hotel address"
-                          style={{ padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--surface)', color: 'var(--text-primary)' }}
+                          style={{ padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--surface)', color: 'black' }}
                         />
                       </label>
                       <label style={{ display: 'grid', gap: '8px', fontSize: '13px', color: 'var(--text-secondary)' }}>
@@ -919,7 +947,7 @@ const AdminDashboard = () => {
                           value={newHotel.phone}
                           onChange={handleNewHotelChange}
                           placeholder="Enter contact phone"
-                          style={{ padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--surface)', color: 'var(--text-primary)' }}
+                          style={{ padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--surface)', color: 'black' }}
                         />
                       </label>
                       {createError && <p style={{ color: '#c0392b', fontSize: '13px' }}>{createError}</p>}
@@ -1414,7 +1442,7 @@ const AdminDashboard = () => {
                           value={newManager.name}
                           onChange={(e) => setNewManager({ ...newManager, name: e.target.value })}
                           placeholder="Enter full name"
-                          style={{ padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--surface)', color: 'var(--text-primary)' }}
+                          style={{ padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--surface)', color: 'black' }}
                         />
                       </label>
                       <label style={{ display: 'grid', gap: '8px', fontSize: '13px', color: 'var(--text-secondary)' }}>
@@ -1424,7 +1452,7 @@ const AdminDashboard = () => {
                           value={newManager.email}
                           onChange={(e) => setNewManager({ ...newManager, email: e.target.value })}
                           placeholder="Enter email address"
-                          style={{ padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--surface)', color: 'var(--text-primary)' }}
+                          style={{ padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--surface)', color: 'black' }}
                         />
                       </label>
                       <label style={{ display: 'grid', gap: '8px', fontSize: '13px', color: 'var(--text-secondary)' }}>
@@ -1434,7 +1462,7 @@ const AdminDashboard = () => {
                           value={newManager.password}
                           onChange={(e) => setNewManager({ ...newManager, password: e.target.value })}
                           placeholder="Enter secure password"
-                          style={{ padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--surface)', color: 'var(--text-primary)' }}
+                          style={{ padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--surface)', color: 'black' }}
                         />
                       </label>
                       <label style={{ display: 'grid', gap: '8px', fontSize: '13px', color: 'var(--text-secondary)' }}>
@@ -1442,7 +1470,7 @@ const AdminDashboard = () => {
                         <select
                           value={newManager.restaurant_id}
                           onChange={(e) => setNewManager({ ...newManager, restaurant_id: e.target.value })}
-                          style={{ padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--surface)', color: 'var(--text-primary)' }}
+                          style={{ padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--surface)', color: 'black' }}
                         >
                           <option value="">Select a hotel...</option>
                           {hotels.map(hotel => (
@@ -1604,8 +1632,8 @@ const AdminDashboard = () => {
                     <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Share</span>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-                    {paymentMethods.map((method) => (
-                      <div key={method.name} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {paymentMethods.map((method, idx) => (
+                      <div key={`${method.name}-${idx}`} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <span style={{ fontSize: '14px', fontWeight: '600', color: '#111111' }}>{method.name}</span>
                           <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{method.percentage.toFixed(1)}%</span>
@@ -1736,8 +1764,8 @@ const AdminDashboard = () => {
                         <h4 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '4px', margin: 0, color: '#111827' }}>Dark Mode</h4>
                         <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>Enable dark theme across the platform</p>
                       </div>
-                      <div style={{ width: '44px', height: '24px', background: '#E2E8F0', borderRadius: '12px', position: 'relative', cursor: 'pointer' }}>
-                        <div style={{ width: '20px', height: '20px', background: 'white', borderRadius: '50%', position: 'absolute', top: '2px', left: '2px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }} />
+                      <div onClick={() => handleSettingToggle('darkMode')} style={{ width: '44px', height: '24px', background: adminSettings.darkMode ? '#F97316' : '#E2E8F0', borderRadius: '12px', position: 'relative', cursor: 'pointer', transition: 'background 0.3s' }}>
+                        <div style={{ width: '20px', height: '20px', background: 'white', borderRadius: '50%', position: 'absolute', top: '2px', left: adminSettings.darkMode ? '22px' : '2px', transition: 'left 0.2s', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }} />
                       </div>
                     </div>
                     {/* Push Notifications */}
@@ -1746,8 +1774,8 @@ const AdminDashboard = () => {
                         <h4 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '4px', margin: 0, color: '#111827' }}>Push Notifications</h4>
                         <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>Receive alerts for critical updates</p>
                       </div>
-                      <div style={{ width: '44px', height: '24px', background: '#ff6b35', borderRadius: '12px', position: 'relative', cursor: 'pointer' }}>
-                        <div style={{ width: '20px', height: '20px', background: 'white', borderRadius: '50%', position: 'absolute', top: '2px', left: '22px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }} />
+                      <div onClick={() => handleSettingToggle('pushNotifications')} style={{ width: '44px', height: '24px', background: adminSettings.pushNotifications ? '#F97316' : '#E2E8F0', borderRadius: '12px', position: 'relative', cursor: 'pointer', transition: 'background 0.3s' }}>
+                        <div style={{ width: '20px', height: '20px', background: 'white', borderRadius: '50%', position: 'absolute', top: '2px', left: adminSettings.pushNotifications ? '22px' : '2px', transition: 'left 0.2s', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }} />
                       </div>
                     </div>
                     {/* Auto-assign Managers */}
@@ -1756,8 +1784,8 @@ const AdminDashboard = () => {
                         <h4 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '4px', margin: 0, color: '#111827' }}>Auto-assign Managers</h4>
                         <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>Automatically link new venues</p>
                       </div>
-                      <div style={{ width: '44px', height: '24px', background: '#ff6b35', borderRadius: '12px', position: 'relative', cursor: 'pointer' }}>
-                        <div style={{ width: '20px', height: '20px', background: 'white', borderRadius: '50%', position: 'absolute', top: '2px', left: '22px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }} />
+                      <div onClick={() => handleSettingToggle('autoAssignManagers')} style={{ width: '44px', height: '24px', background: adminSettings.autoAssignManagers ? '#F97316' : '#E2E8F0', borderRadius: '12px', position: 'relative', cursor: 'pointer', transition: 'background 0.3s' }}>
+                        <div style={{ width: '20px', height: '20px', background: 'white', borderRadius: '50%', position: 'absolute', top: '2px', left: adminSettings.autoAssignManagers ? '22px' : '2px', transition: 'left 0.2s', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }} />
                       </div>
                     </div>
                   </div>
@@ -1778,13 +1806,18 @@ const AdminDashboard = () => {
                         <h4 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '4px', margin: 0, color: '#111827' }}>Two-Factor Authentication</h4>
                         <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>Require 2FA for all admin logins</p>
                       </div>
-                      <div style={{ width: '44px', height: '24px', background: '#E2E8F0', borderRadius: '12px', position: 'relative', cursor: 'pointer' }}>
-                        <div style={{ width: '20px', height: '20px', background: 'white', borderRadius: '50%', position: 'absolute', top: '2px', left: '2px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }} />
+                      <div onClick={() => handleSettingToggle('twoFactorAuth')} style={{ width: '44px', height: '24px', background: adminSettings.twoFactorAuth ? '#F97316' : '#E2E8F0', borderRadius: '12px', position: 'relative', cursor: 'pointer', transition: 'background 0.3s' }}>
+                        <div style={{ width: '20px', height: '20px', background: 'white', borderRadius: '50%', position: 'absolute', top: '2px', left: adminSettings.twoFactorAuth ? '22px' : '2px', transition: 'left 0.2s', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }} />
                       </div>
                     </div>
                     <div style={{ paddingTop: '24px' }}>
                       <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Session Timeout</label>
-                      <input type="text" defaultValue="30 minutes" style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: '#FAFAFA', fontSize: '14px', color: '#111827', outline: 'none' }} />
+                      <select value={adminSettings.sessionTimeout} onChange={(e) => handleSettingChange('sessionTimeout', e.target.value)} style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: '#FAFAFA', fontSize: '14px', color: '#111827', outline: 'none' }}>
+                        <option>15 mins</option>
+                        <option>30 mins</option>
+                        <option>1 hour</option>
+                        <option>Never</option>
+                      </select>
                     </div>
                   </div>
                 </div>

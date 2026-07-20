@@ -10,6 +10,7 @@ import './styles/global.css';
 const Onboarding = React.lazy(() => import('./pages/Onboarding'));
 const AdminDashboard = React.lazy(() => import('./pages/AdminDashboard'));
 const HotelManagerDashboard = React.lazy(() => import('./pages/HotelManagerDashboard'));
+const CashierDashboard = React.lazy(() => import('./pages/CashierDashboard'));
 import './styles/global.css';
 
 function App() {
@@ -39,6 +40,15 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <HotelManagerDashboard />
+                    </ProtectedRoute>
+                  }
+                />
+
+                <Route
+                  path="/cashier-dashboard"
+                  element={
+                    <ProtectedRoute>
+                      <CashierDashboard />
                     </ProtectedRoute>
                   }
                 />

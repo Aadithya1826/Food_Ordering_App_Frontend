@@ -171,7 +171,7 @@ const HotelManagerDashboard = () => {
               className="logo-title-image"
             />
           )}
-          <div className="logo-symbol-manager">MANAGER</div>
+          <div className="logo-symbol-manager">{sidebarOpen ? 'MANAGER' : 'MGR'}</div>
 
         </div>
 

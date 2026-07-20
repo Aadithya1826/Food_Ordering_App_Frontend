@@ -10,7 +10,19 @@ import ChefMascot from '../assets/chef_mascot.png';
 
 const Onboarding = () => {
   const navigate = useNavigate();
-  const { login, signup } = useAuth();
+  const { user, isAuthenticated, login, signup } = useAuth();
+
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      if (user.role === 'SUPER_ADMIN') {
+        navigate('/admin-dashboard');
+      } else if (user.role === 'CASHIER') {
+        navigate('/cashier-dashboard');
+      } else {
+        navigate('/manager-dashboard');
+      }
+    }
+  }, [isAuthenticated, user, navigate]);
 
   // States
   const [step, setStep] = useState('role'); // 'role', 'auth'
@@ -47,6 +59,13 @@ const Onboarding = () => {
       description: 'Manage daily restaurant operations',
       color: 'gray',
     },
+    {
+      id: 'cashier',
+      label: 'Cashier',
+      abbreviation: 'CA',
+      description: 'Manage cash payments and bill generation',
+      color: 'blue',
+    },
   ];
 
   // Handle role selection
@@ -61,7 +80,7 @@ const Onboarding = () => {
 
   useEffect(() => {
     const fetchRestaurants = async () => {
-      if (selectedRole !== 'hotel_manager' || step !== 'auth') {
+      if ((selectedRole !== 'hotel_manager' && selectedRole !== 'cashier') || step !== 'auth') {
         return;
       }
 
@@ -104,13 +123,17 @@ const Onboarding = () => {
       return;
     }
 
-    const roleParam = selectedRole === 'super_admin' ? 'SUPER_ADMIN' : 'HOTEL_ADMIN';
+    let roleParam = 'HOTEL_ADMIN';
+    if (selectedRole === 'super_admin') roleParam = 'SUPER_ADMIN';
+    else if (selectedRole === 'cashier') roleParam = 'CASHIER';
     setLoading(true);
     try {
       await login(formData.email, formData.password, roleParam);
       // Navigate to respective dashboard directly
       if (selectedRole === 'super_admin') {
         navigate('/admin-dashboard');
+      } else if (selectedRole === 'cashier') {
+        navigate('/cashier-dashboard');
       } else {
         navigate('/manager-dashboard');
       }
@@ -146,9 +169,12 @@ const Onboarding = () => {
       return;
     }
 
-    const roleParam = selectedRole === 'super_admin' ? 'SUPER_ADMIN' : 'HOTEL_ADMIN';
-    if (roleParam === 'HOTEL_ADMIN' && !formData.restaurant_id) {
-      setError('Please select a restaurant for the hotel manager account.');
+    let roleParam = 'HOTEL_ADMIN';
+    if (selectedRole === 'super_admin') roleParam = 'SUPER_ADMIN';
+    else if (selectedRole === 'cashier') roleParam = 'CASHIER';
+
+    if ((roleParam === 'HOTEL_ADMIN' || roleParam === 'CASHIER') && !formData.restaurant_id) {
+      setError(`Please select a restaurant for the ${selectedRole.replace('_', ' ')} account.`);
       return;
     }
 
@@ -159,7 +185,7 @@ const Onboarding = () => {
         formData.email,
         formData.password,
         roleParam,
-        roleParam === 'HOTEL_ADMIN' ? formData.restaurant_id : null
+        (roleParam === 'HOTEL_ADMIN' || roleParam === 'CASHIER') ? formData.restaurant_id : null
       );
       setSuccessMessage('Signup done successfully. Please sign in to login.');
       setError('');
@@ -216,7 +242,7 @@ const Onboarding = () => {
             {roles.map((role) => (
               <button
                 key={role.id}
-                className={`btn-role ${role.color === 'gray' ? 'hotel-manager' : ''} ${
+                className={`btn-role ${role.color === 'gray' ? 'hotel-manager' : ''} ${role.color === 'blue' ? 'cashier' : ''} ${
                   selectedRole === role.id ? 'active' : ''
                 }`}
                 onClick={() => handleRoleSelect(role.id)}
@@ -273,7 +299,7 @@ const Onboarding = () => {
             fontWeight: '600',
           }}
         >
-          {selectedRole === 'super_admin' ? '👤 Super Admin Account' : '🍽️ Hotel Manager Account'}
+          {selectedRole === 'super_admin' ? '👤 Super Admin Account' : selectedRole === 'cashier' ? '💵 Cashier Account' : '🍽️ Hotel Manager Account'}
         </div>
 
         {/* Success Message */}
@@ -379,8 +405,8 @@ const Onboarding = () => {
             />
           </div>
 
-          {/* Restaurant Selection - Only for hotel manager signup */}
-          {authMode === 'signup' && selectedRole === 'hotel_manager' && (
+          {/* Restaurant Selection - Only for hotel manager and cashier signup */}
+          {authMode === 'signup' && (selectedRole === 'hotel_manager' || selectedRole === 'cashier') && (
             <div className="form-group">
               <label className="form-label">Restaurant</label>
               <select
@@ -398,7 +424,7 @@ const Onboarding = () => {
                 ))}
               </select>
               {restaurantLoading && <div className="input-note">Loading restaurants…</div>}
-              {!restaurantLoading && selectedRole === 'hotel_manager' && restaurants.length === 0 && (
+              {!restaurantLoading && (selectedRole === 'hotel_manager' || selectedRole === 'cashier') && restaurants.length === 0 && (
                 <div className="input-note">No restaurants available. Please contact your admin.</div>
               )}
             </div>

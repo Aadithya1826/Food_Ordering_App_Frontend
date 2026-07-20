@@ -70,6 +70,33 @@ body,
   width: 70px;
 }
 
+.admin-sidebar.collapsed .sidebar-logo {
+  padding: 24px 0;
+  justify-content: center;
+}
+
+.admin-sidebar.collapsed .sidebar-menu-button {
+  padding: 14px 0;
+  justify-content: center;
+}
+
+.admin-sidebar.collapsed .sidebar-footer {
+  padding: 20px 0;
+}
+
+.admin-sidebar.collapsed .sidebar-footer p {
+  display: none;
+}
+
+.admin-sidebar.collapsed .sidebar-logout-button {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  margin: 0 auto;
+  border-radius: 12px;
+  justify-content: center;
+}
+
 .sidebar-logo {
   padding: 24px 20px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
@@ -108,6 +135,10 @@ body,
   color: #42cf01;
   ;
   background: rgba(0, 0, 0, 0.18);
+}
+
+.admin-sidebar.collapsed .logo-symbol-manager {
+  width: 52px;
 }
 
 .logo-text {
@@ -581,8 +612,28 @@ body,
 
 .btn-role.hotel-manager:hover .btn-role-icon {
   background: linear-gradient(135deg, rgb(0, 216, 0) 0%, rgb(0, 107, 0) 100%);
+}
+
+.btn-role.hotel-manager:hover {
+  border-color: rgb(0, 216, 0);
+  box-shadow: 0 10px 30px rgba(0, 216, 0, 0.2);
+}
+
+.btn-role.hotel-manager:hover .btn-role-arrow {
+  color: rgb(0, 216, 0);
+}
+
+.btn-role.hotel-manager.active {
+  background: rgba(0, 216, 0, 0.1);
+  border-color: rgb(0, 216, 0);
+  box-shadow: 0 0 0 2px rgba(0, 216, 0, 0.2);
+}
+
+.btn-role.cashier:hover .btn-role-icon {
+  background: linear-gradient(135deg, rgb(0, 216, 205) 0%, rgb(0, 86, 107) 100%);
 
 }
+
 
 .btn-role-content h3 {
   margin-bottom: 4px;
@@ -1539,12 +1590,12 @@ a:hover {
   .mobile-only-orders {
     display: none !important;
   }
-  
+
   .best-sellers-container {
     margin: 0 !important;
     padding: 0 0 8px 0 !important;
   }
-  
+
   .best-seller-card {
     flex: 1 1 0 !important;
   }
@@ -1648,4 +1699,18 @@ body {
 .mobile-only-orders {
   min-width: 0 !important;
   max-width: 100% !important;
+}
+.btn-role.cashier:hover {
+  border-color: rgb(0, 216, 205);
+  box-shadow: 0 10px 30px rgba(0, 216, 205, 0.2);
+}
+
+.btn-role.cashier:hover .btn-role-arrow {
+  color: rgb(0, 216, 205);
+}
+
+.btn-role.cashier.active {
+  background: rgba(0, 216, 205, 0.1);
+  border-color: rgb(0, 216, 205);
+  box-shadow: 0 0 0 2px rgba(0, 216, 205, 0.2);
 }

@@ -11,8 +11,8 @@ import {
 } from 'lucide-react';
 import { reportsService } from '../services/api';
 import {
-  LineChart,
-  Line,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -160,7 +160,7 @@ const ReportsManagement = () => {
       </div>
 
       <div className="reports-charts-grid" style={{ marginBottom: '24px', display: 'grid', gap: '24px', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))' }}>
-        {/* Weekly Revenue Chart */}
+        {/* Revenue Trend Chart */}
         <div style={{
           background: 'var(--surface)',
           borderRadius: '12px',
@@ -169,39 +169,50 @@ const ReportsManagement = () => {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '24px' }}>
             <Activity size={18} color="var(--primary)" />
-            <h2 style={{ fontSize: '16px', fontWeight: '600' }}>Weekly Revenue</h2>
+            <h2 style={{ fontSize: '16px', fontWeight: '600' }}>Revenue Trend</h2>
           </div>
           <div style={{ height: '300px', width: '100%' }}>
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chart_data} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+              <AreaChart data={chart_data} margin={{ top: 20, right: 20, bottom: 5, left: 0 }}>
+                <defs>
+                  <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#ff8c42" stopOpacity={0.4}/>
+                    <stop offset="95%" stopColor="#ff8c42" stopOpacity={0.0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="var(--border-color)" opacity={0.5} />
                 <XAxis
                   dataKey="name"
                   axisLine={false}
                   tickLine={false}
-                  tick={{ fontSize: 12, fill: 'var(--text-secondary)' }}
+                  tick={{ fontSize: 12, fill: 'var(--text-secondary)', fontWeight: 500 }}
                   dy={10}
                 />
                 <YAxis
                   axisLine={false}
                   tickLine={false}
-                  tick={{ fontSize: 12, fill: 'var(--text-secondary)' }}
+                  tick={{ fontSize: 12, fill: 'var(--text-secondary)', fontWeight: 500 }}
                   tickFormatter={(val) => `₹${val / 1000}K`}
                   dx={-10}
                 />
                 <Tooltip
-                  contentStyle={{ background: 'var(--surface)', borderRadius: '8px', border: '1px solid var(--border)' }}
-                  formatter={(value) => [`₹${value}`, 'Revenue']}
+                  contentStyle={{ background: 'var(--surface)', borderRadius: '12px', border: '1px solid var(--border-color)', boxShadow: '0 8px 24px rgba(0,0,0,0.08)' }}
+                  itemStyle={{ color: 'var(--primary)', fontWeight: 700 }}
+                  labelStyle={{ color: 'var(--text-secondary)', marginBottom: '4px' }}
+                  formatter={(value) => [`₹${value.toLocaleString()}`, 'Revenue']}
+                  cursor={{ stroke: 'var(--primary)', strokeWidth: 1, strokeDasharray: '4 4' }}
                 />
-                <Line
+                <Area
                   type="monotone"
                   dataKey="revenue"
                   stroke="var(--primary)"
-                  strokeWidth={3}
-                  dot={false}
-                  activeDot={{ r: 6, fill: 'var(--primary)', stroke: 'white', strokeWidth: 2 }}
+                  strokeWidth={4}
+                  fillOpacity={1}
+                  fill="url(#colorRevenue)"
+                  activeDot={{ r: 8, fill: 'var(--primary)', stroke: 'white', strokeWidth: 3 }}
+                  label={{ position: 'top', fill: 'var(--text-dark)', fontSize: 11, fontWeight: 700, formatter: (val) => `₹${(val/1000).toFixed(1)}K` }}
                 />
-              </LineChart>
+              </AreaChart>
             </ResponsiveContainer>
           </div>
         </div>
