@@ -148,6 +148,13 @@ const VoiceWidget = ({ onNavigate }) => {
       if (response.data.tool_name === 'navigate_to_page' && response.data.tool_result && onNavigate) {
         onNavigate(response.data.tool_result.page, response.data.tool_result.subtab);
       }
+      
+      // Handle logout tool
+      if (response.data.tool_name === 'trigger_logout') {
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('user');
+        window.location.href = '/';
+      }
 
     } catch (error) {
       console.error('Error fetching voice response:', error);
