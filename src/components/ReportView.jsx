@@ -196,9 +196,15 @@ const ReportView = ({ type, onBack }) => {
         }}>
           
           <div style={{ textAlign: 'center', marginBottom: '16px' }}>
-            <h1 style={{ fontSize: '18px', fontWeight: 'bold', margin: '0 0 4px 0' }}>DATAUDIPI HOTEL</h1>
-            <p style={{ margin: '0 0 2px 0' }}>MUGALIVAKKAM, CHENNAI</p>
-            <p style={{ margin: '0 0 8px 0' }}>PH:9597066563 GSTIN : 33ADLPV4810B3ZQ</p>
+            <h1 style={{ fontSize: '18px', fontWeight: 'bold', margin: '0 0 4px 0', textTransform: 'uppercase' }}>
+              {reportData.restaurant?.name || 'DATAUDIPI HOTEL'}
+            </h1>
+            <p style={{ margin: '0 0 2px 0', textTransform: 'uppercase' }}>
+              {reportData.restaurant?.address || 'MUGALIVAKKAM, CHENNAI'}
+            </p>
+            <p style={{ margin: '0 0 8px 0', textTransform: 'uppercase' }}>
+              PH:{reportData.restaurant?.phone || '9597066563'} GSTIN : {reportData.restaurant?.gstin || '33ADLPV4810B3ZQ'}
+            </p>
             
             <h2 style={{ fontSize: '16px', fontWeight: 'bold', margin: '16px 0 12px 0', textTransform: 'uppercase' }}>
               {type === 'hourly' ? 'HOURLY REPORT' : 'ITEM WISE REPORT'}
