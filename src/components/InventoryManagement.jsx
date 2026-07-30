@@ -588,7 +588,7 @@ const InventoryManagement = () => {
       {/* Scan Inventory Modal */}
       {showScanModal && (
         <div className="modal-overlay">
-          <div className="modal-content modal-content-lg" style={{ maxWidth: scanResults ? '900px' : '500px' }}>
+          <div className="modal-content modal-content-lg" style={{ maxWidth: scanResults ? '1100px' : '500px', width: scanResults ? '95%' : 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
               <div>
                 <h2 style={{ fontSize: '24px', fontWeight: '700', marginBottom: '4px' }}>
@@ -738,12 +738,13 @@ const InventoryManagement = () => {
                     <thead style={{ background: '#f9f9f9', borderBottom: '1px solid #eaeaea' }}>
                       <tr>
                         <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '13px', color: 'var(--text-secondary)' }}>Item Name</th>
-                        <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '13px', color: 'var(--text-secondary)', width: '80px' }}>Open</th>
-                        <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '13px', color: 'var(--text-secondary)', width: '80px' }}>Purch</th>
-                        <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '13px', color: 'var(--text-secondary)', width: '80px' }}>Issue</th>
-                        <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '13px', color: 'var(--text-secondary)', width: '80px' }}>Bal</th>
-                        <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '13px', color: 'var(--text-secondary)', width: '100px' }}>Unit</th>
-                        <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: '13px', color: 'var(--text-secondary)', width: '60px' }}></th>
+                        <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '13px', color: 'var(--text-secondary)', width: '100px' }}>Open</th>
+                        <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '13px', color: 'var(--text-secondary)', width: '100px' }}>Purch</th>
+                        <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '13px', color: 'var(--text-secondary)', width: '100px' }}>Total</th>
+                        <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '13px', color: 'var(--text-secondary)', width: '100px' }}>Issue</th>
+                        <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '13px', color: 'var(--text-secondary)', width: '100px' }}>Bal</th>
+                        <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '13px', color: 'var(--text-secondary)', width: '120px' }}>Unit</th>
+                        <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: '13px', color: 'var(--text-secondary)', width: '50px' }}></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -771,6 +772,14 @@ const InventoryManagement = () => {
                               value={item.purchase || 0}
                               onChange={(e) => updateScanResult(index, 'purchase', parseFloat(e.target.value))}
                               style={{ width: '100%', padding: '8px', border: '1px solid transparent', borderRadius: '4px', fontSize: '14px', outline: 'none' }}
+                            />
+                          </td>
+                          <td style={{ padding: '8px 16px' }}>
+                            <input
+                              type="number"
+                              value={item.total || 0}
+                              onChange={(e) => updateScanResult(index, 'total', parseFloat(e.target.value))}
+                              style={{ width: '100%', padding: '8px', border: '1px solid transparent', borderRadius: '4px', fontSize: '14px', outline: 'none', fontWeight: '500' }}
                             />
                           </td>
                           <td style={{ padding: '8px 16px' }}>
