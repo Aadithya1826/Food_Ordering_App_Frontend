@@ -1714,3 +1714,35 @@ body {
   border-color: rgb(0, 216, 205);
   box-shadow: 0 0 0 2px rgba(0, 216, 205, 0.2);
 }
+
+.print-only {
+  display: none;
+}
+@media print {
+  @page {
+    margin: 0;
+  }
+  
+  body * {
+    visibility: hidden;
+  }
+
+  .print-only,
+  .print-only * {
+    visibility: visible !important;
+  }
+
+  .print-only {
+    display: block !important;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+}

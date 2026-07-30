@@ -7,9 +7,11 @@ import {
   Activity,
   IndianRupee,
   ArrowUpRight,
-  ArrowDownRight
+  ArrowDownRight,
+  Printer
 } from 'lucide-react';
 import { reportsService } from '../services/api';
+import ReportView from './ReportView';
 import {
   AreaChart,
   Area,
@@ -23,6 +25,7 @@ import {
 const ReportsManagement = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [reportPrintType, setReportPrintType] = useState(null);
 
   useEffect(() => {
     const fetchReports = async () => {
@@ -96,6 +99,17 @@ const ReportsManagement = () => {
     }
   ];
 
+  if (reportPrintType) {
+    return (
+      <div className="page-container admin-page-mobile-wrapper" style={{ maxWidth: '1400px', margin: '0 auto' }}>
+        <ReportView 
+          type={reportPrintType} 
+          onBack={() => setReportPrintType(null)} 
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="page-container admin-page-mobile-wrapper" style={{ maxWidth: '1400px', margin: '0 auto' }}>
       <div className="desktop-only" style={{ marginBottom: '24px' }}>
@@ -157,6 +171,33 @@ const ReportsManagement = () => {
             </div>
           );
         })}
+      </div>
+
+      {/* Daily Bill Reports Section */}
+      <div style={{
+        background: 'var(--surface)',
+        borderRadius: '12px',
+        padding: '24px',
+        border: '1px solid var(--border)',
+        marginBottom: '24px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '16px'
+      }}>
+        <div>
+          <h2 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '4px', color: 'black' }}>Daily Bill Reports</h2>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: 0 }}>Generate and print detailed reports for today's sales.</p>
+        </div>
+        <div style={{ display: 'flex', gap: '12px' }}>
+          <button className="secondary-button" onClick={() => setReportPrintType('hourly')} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer' }}>
+            <Printer size={16} /> Hourly Report
+          </button>
+          <button className="primary-button" onClick={() => setReportPrintType('item')} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', borderRadius: '8px', background: 'var(--primary)', color: 'white', border: 'none', cursor: 'pointer' }}>
+            <Printer size={16} /> Item Wise Report
+          </button>
+        </div>
       </div>
 
       <div className="reports-charts-grid" style={{ marginBottom: '24px', display: 'grid', gap: '24px', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))' }}>
