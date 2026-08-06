@@ -10,6 +10,7 @@ const MenuManagement = () => {
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
+  const [selectedRegion, setSelectedRegion] = useState('All');
   
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -201,14 +202,21 @@ const MenuManagement = () => {
                           (item.item_code && item.item_code.toLowerCase().includes(searchQuery.toLowerCase()));
     
     let matchesCategory = true;
+    let categoryObj = null;
     if (activeCategory !== 'All') {
-      // Find category case-insensitively and allowing partial matches (e.g., 'noodle' matching 'Noodles')
       const searchCat = activeCategory.toLowerCase();
-      const categoryObj = categories.find(c => c.name.toLowerCase().includes(searchCat));
+      categoryObj = categories.find(c => c.name.toLowerCase().includes(searchCat));
       matchesCategory = categoryObj && item.category_id === categoryObj.id;
+    } else {
+      categoryObj = categories.find(c => c.id === item.category_id);
     }
     
-    return matchesSearch && matchesCategory;
+    let matchesRegion = true;
+    if (selectedRegion !== 'All') {
+      matchesRegion = categoryObj && categoryObj.description === selectedRegion;
+    }
+    
+    return matchesSearch && matchesCategory && matchesRegion;
   });
 
   const availableCount = items.filter(i => i.is_available).length;
@@ -323,8 +331,47 @@ const MenuManagement = () => {
           />
         </div>
 
+        <div className="region-filters" style={{ display: 'flex', gap: '8px', marginBottom: '12px', overflowX: 'auto', paddingBottom: '4px', msOverflowStyle: 'none', scrollbarWidth: 'none' }}>
+          <button
+            onClick={() => setSelectedRegion('All')}
+            style={{
+              padding: '6px 16px', borderRadius: '24px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', whiteSpace: 'nowrap',
+              border: selectedRegion === 'All' ? 'none' : '1px solid #E5E7EB',
+              background: selectedRegion === 'All' ? '#10B981' : 'white',
+              color: selectedRegion === 'All' ? 'white' : '#111'
+            }}
+          >
+            All Regions
+          </button>
+          <button
+            onClick={() => setSelectedRegion('South Indian')}
+            style={{
+              padding: '6px 16px', borderRadius: '24px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', whiteSpace: 'nowrap',
+              border: selectedRegion === 'South Indian' ? 'none' : '1px solid #E5E7EB',
+              background: selectedRegion === 'South Indian' ? '#10B981' : 'white',
+              color: selectedRegion === 'South Indian' ? 'white' : '#111'
+            }}
+          >
+            South Indian
+          </button>
+          <button
+            onClick={() => setSelectedRegion('North Indian')}
+            style={{
+              padding: '6px 16px', borderRadius: '24px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', whiteSpace: 'nowrap',
+              border: selectedRegion === 'North Indian' ? 'none' : '1px solid #E5E7EB',
+              background: selectedRegion === 'North Indian' ? '#10B981' : 'white',
+              color: selectedRegion === 'North Indian' ? 'white' : '#111'
+            }}
+          >
+            North Indian
+          </button>
+        </div>
+
         <div className="scroll-x menu-categories-scroll" style={{ display: 'flex', gap: '8px', paddingBottom: '4px', msOverflowStyle: 'none', scrollbarWidth: 'none' }}>
-          {['All', ...categories.map(c => c.name)].map((cat) => (
+          {['All', ...categories
+            .filter(c => (selectedRegion === 'All' || c.description === selectedRegion) && items.some(item => item.category_id === c.id))
+            .map(c => c.name)]
+            .map((cat) => (
             <button
               key={cat}
               onClick={() => setActiveCategory(cat)}

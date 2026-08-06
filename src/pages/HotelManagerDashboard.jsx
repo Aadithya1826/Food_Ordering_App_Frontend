@@ -28,6 +28,7 @@ import InventoryManagement from '../components/InventoryManagement';
 import PaymentManagement from '../components/PaymentManagement';
 import ReportsManagement from '../components/ReportsManagement';
 import SettingsManagement from '../components/SettingsManagement';
+import ConsumptionReports from '../components/ConsumptionReports';
 import VoiceWidget from '../components/VoiceWidget';
 
 const HotelManagerDashboard = () => {
@@ -38,11 +39,17 @@ const HotelManagerDashboard = () => {
   const [activePage, setActivePage] = useState('dashboard');
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
 
-  if (hotelId) {
-    localStorage.setItem('admin_selected_restaurant', hotelId);
-  } else {
-    localStorage.removeItem('admin_selected_restaurant');
-  }
+  useEffect(() => {
+    if (hotelId === 'consumption') {
+      setActivePage('consumption');
+      navigate('/manager-dashboard', { replace: true });
+      localStorage.removeItem('admin_selected_restaurant');
+    } else if (hotelId && !isNaN(hotelId)) {
+      localStorage.setItem('admin_selected_restaurant', hotelId);
+    } else {
+      localStorage.removeItem('admin_selected_restaurant');
+    }
+  }, [hotelId, navigate]);
 
   useEffect(() => {
     return () => {
@@ -79,6 +86,16 @@ const HotelManagerDashboard = () => {
     scrollToTop();
     setTimeout(scrollToTop, 50);
   }, [activePage]);
+
+  useEffect(() => {
+    const handleNavigate = (e) => {
+      if (e.detail?.page) {
+        setActivePage(e.detail.page);
+      }
+    };
+    window.addEventListener('navigate-dashboard', handleNavigate);
+    return () => window.removeEventListener('navigate-dashboard', handleNavigate);
+  }, []);
 
   useEffect(() => {
     if (activePage !== 'dashboard') return;
@@ -304,6 +321,19 @@ const HotelManagerDashboard = () => {
             </div>
           )}
 
+          {activePage === 'consumption' && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%' }}>
+              <div>
+                <h2 style={{ margin: '0 0 6px', fontSize: '22px', fontWeight: '700', color: '#fff' }}>
+                  Consumption Reports
+                </h2>
+                <p style={{ margin: 0, fontSize: '13px', color: '#999' }}>
+                  Compare theoretical vs actual usage
+                </p>
+              </div>
+            </div>
+          )}
+
           {activePage === 'payments' && (
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%' }}>
               <div>
@@ -503,6 +533,10 @@ const HotelManagerDashboard = () => {
 
           {activePage === 'inventory' && (
             <InventoryManagement />
+          )}
+
+          {activePage === 'consumption' && (
+            <ConsumptionReports />
           )}
 
           {activePage === 'payments' && (

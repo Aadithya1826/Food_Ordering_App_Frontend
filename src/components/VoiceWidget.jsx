@@ -6,13 +6,27 @@ import ChefMascot from '../assets/chef.png';
 const VoiceWidget = ({ onNavigate }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isListening, setIsListening] = useState(false);
-  const [messages, setMessages] = useState([
-    {
-      id: 1,
-      role: 'assistant',
-      text: "I'm your assistant! Click the mic to talk, or just type a message.",
+  const [messages, setMessages] = useState(() => {
+    const saved = sessionStorage.getItem('voice_chat_history');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        // ignore parse error
+      }
     }
-  ]);
+    return [
+      {
+        id: 1,
+        role: 'assistant',
+        text: "I'm your assistant! Click the mic to talk, or just type a message.",
+      }
+    ];
+  });
+
+  useEffect(() => {
+    sessionStorage.setItem('voice_chat_history', JSON.stringify(messages));
+  }, [messages]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [liveText, setLiveText] = useState('');
   const [inputText, setInputText] = useState('');
@@ -60,6 +74,14 @@ const VoiceWidget = ({ onNavigate }) => {
     window.addEventListener('touchstart', handleTouch, { passive: true });
 
     return () => {
+      if (currentAudioRef.current) {
+        currentAudioRef.current.pause();
+        currentAudioRef.current.currentTime = 0;
+      }
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+        shouldSendAudioRef.current = false;
+        mediaRecorderRef.current.stop();
+      }
       if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
       if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
       if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
@@ -84,11 +106,17 @@ const VoiceWidget = ({ onNavigate }) => {
     if (!isExpanded) setIsExpanded(true);
 
     try {
-      // Build history payload
-      const historyToSend = messages.slice(-10).map(m => ({
-        role: m.role,
-        text: m.text
-      }));
+      // Build history payload (keep more messages so state isn't lost in long workflows)
+      const historyToSend = messages.slice(-40).map(m => {
+        let txt = m.text;
+        if (m.tool_name && m.tool_result) {
+          txt += `\n[System Note: In this turn, you executed tool '${m.tool_name}' which returned: ${JSON.stringify(m.tool_result)}]`;
+        }
+        return {
+          role: m.role,
+          text: txt
+        };
+      });
 
       const payload = {
         transcribed_text: base64Audio ? "Please transcribe and respond to the audio payload." : trimmedText,
@@ -114,7 +142,13 @@ const VoiceWidget = ({ onNavigate }) => {
             newMessages[userMsgIndex] = { ...newMessages[userMsgIndex], text: response.data.transcribed_user_text };
           }
         }
-        newMessages.push({ id: Date.now() + 1, role: 'assistant', text: replyText });
+        newMessages.push({ 
+          id: Date.now() + 1, 
+          role: 'assistant', 
+          text: replyText,
+          tool_name: response.data.tool_name,
+          tool_result: response.data.tool_result 
+        });
         return newMessages;
       });
 
@@ -153,6 +187,7 @@ const VoiceWidget = ({ onNavigate }) => {
       if (response.data.tool_name === 'trigger_logout') {
         localStorage.removeItem('access_token');
         localStorage.removeItem('user');
+        sessionStorage.removeItem('voice_chat_history');
         window.location.href = '/';
       }
 

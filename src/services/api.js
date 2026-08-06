@@ -76,6 +76,7 @@ api.interceptors.response.use(
         toast.info("Session expired. Please log in again.");
         localStorage.removeItem('access_token');
         localStorage.removeItem('user');
+        sessionStorage.removeItem('voice_chat_history');
         window.location.href = '/';
         return Promise.reject(refreshError);
       }
@@ -118,6 +119,7 @@ export const authService = {
     } finally {
       localStorage.removeItem('access_token');
       localStorage.removeItem('user');
+      sessionStorage.removeItem('voice_chat_history');
     }
   },
 
@@ -321,6 +323,23 @@ export const reportsService = {
   },
   getItemWiseReport: async (params = {}) => {
     const response = await api.get('/api/v1/reports/items', { params });
+    return response.data;
+  },
+  getConsumptionReport: async (date) => {
+    const response = await api.get('/api/v1/reports/consumption', { params: { report_date: date } });
+    return response.data;
+  },
+};
+
+export const recipeService = {
+  getRecipes: async (menuItemId = null) => {
+    const params = menuItemId ? { menu_item_id: menuItemId } : {};
+    const response = await api.get('/api/v1/recipes', { params });
+    return response.data;
+  },
+
+  updateRecipe: async (payload) => {
+    const response = await api.post('/api/v1/recipes', payload);
     return response.data;
   },
 };

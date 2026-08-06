@@ -22,6 +22,7 @@ function CashierDashboard() {
   const [descriptionInput, setDescriptionInput] = useState('');
   const [categories, setCategories] = useState([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState('All');
+  const [selectedRegion, setSelectedRegion] = useState('All');
   const [selectedFilterIndex, setSelectedFilterIndex] = useState(-1);
   const [billNo, setBillNo] = useState(101);
   const [lastBillNo, setLastBillNo] = useState(0);
@@ -311,6 +312,12 @@ function CashierDashboard() {
 
   const filteredItems = menuItems.filter(item => {
     if (selectedCategoryId !== 'All' && item.category_id !== selectedCategoryId) return false;
+    
+    if (selectedRegion !== 'All') {
+      const categoryObj = categories.find(c => c.id === item.category_id);
+      if (!categoryObj || categoryObj.description !== selectedRegion) return false;
+    }
+
     const search = descriptionInput.trim().toLowerCase();
     if (search) {
       const matchName = item.name && item.name.toLowerCase().includes(search);
@@ -440,6 +447,30 @@ function CashierDashboard() {
             />
           </div>
 
+          <div className="region-filters" style={{ display: 'flex', gap: '8px', marginBottom: '12px', overflowX: 'auto', paddingBottom: '4px' }}>
+            <button
+              className={`cat-btn ${selectedRegion === 'All' ? 'active' : ''}`}
+              onClick={() => setSelectedRegion('All')}
+              style={{ fontWeight: '600' }}
+            >
+              All Regions
+            </button>
+            <button
+              className={`cat-btn ${selectedRegion === 'South Indian' ? 'active' : ''}`}
+              onClick={() => setSelectedRegion('South Indian')}
+              style={{ fontWeight: '600' }}
+            >
+              South Indian
+            </button>
+            <button
+              className={`cat-btn ${selectedRegion === 'North Indian' ? 'active' : ''}`}
+              onClick={() => setSelectedRegion('North Indian')}
+              style={{ fontWeight: '600' }}
+            >
+              North Indian
+            </button>
+          </div>
+
           <div className="category-filters">
             <button
               className={`cat-btn ${selectedCategoryId === 'All' ? 'active' : ''}`}
@@ -447,7 +478,9 @@ function CashierDashboard() {
             >
               All
             </button>
-            {categories.map(cat => (
+            {categories
+              .filter(cat => (selectedRegion === 'All' || cat.description === selectedRegion) && menuItems.some(item => item.category_id === cat.id))
+              .map(cat => (
               <button
                 key={cat.id}
                 className={`cat-btn ${selectedCategoryId === cat.id ? 'active' : ''}`}

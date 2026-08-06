@@ -11,6 +11,7 @@ const Onboarding = React.lazy(() => import('./pages/Onboarding'));
 const AdminDashboard = React.lazy(() => import('./pages/AdminDashboard'));
 const HotelManagerDashboard = React.lazy(() => import('./pages/HotelManagerDashboard'));
 const CashierDashboard = React.lazy(() => import('./pages/CashierDashboard'));
+const ConsumptionReports = React.lazy(() => import('./components/ConsumptionReports'));
 import './styles/global.css';
 
 function App() {

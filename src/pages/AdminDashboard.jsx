@@ -25,7 +25,16 @@ import {
 } from 'lucide-react';
 import VoiceWidget from '../components/VoiceWidget';
 import DataudipiTitle from '../assets/Dataudupi-Title.png';
-import { restaurantService, tableService, managerService, reportsService } from '../services/api';
+import { restaurantService, tableService, reportsService, managerService } from '../services/api';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer
+} from 'recharts';
 
 const AdminDashboard = () => {
   const { user, logout } = useAuth();
@@ -1578,42 +1587,52 @@ const AdminDashboard = () => {
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
-                      <p style={{ margin: 0, fontSize: '14px', color: 'var(--text-secondary)', fontWeight: '600' }}>Monthly Revenue Trend</p>
+                      <p style={{ margin: 0, fontSize: '14px', color: 'var(--text-secondary)', fontWeight: '600' }}>Weekly Revenue Trend</p>
                     </div>
-                    <button
-                      style={{
-                        border: '1px solid rgba(15, 23, 42, 0.12)',
-                        background: 'transparent',
-                        borderRadius: '999px',
-                        padding: '10px 16px',
-                        color: '#111111',
-                        fontWeight: '600',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Last 6 months
-                    </button>
                   </div>
-                  <div style={{ flex: 1, position: 'relative', minHeight: '220px', overflow: 'hidden' }}>
-                    <div
-                      style={{
-                        position: 'absolute',
-                        inset: 0,
-                        borderRadius: '20px',
-                        background: 'linear-gradient(180deg, rgba(255, 140, 66, 0.12), rgba(255, 255, 255, 0.00))',
-                      }}
-                    />
-                    <div style={{ position: 'relative', zIndex: 1, width: '100%', height: '100%', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', padding: '20px 0' }}>
-                      {['Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'].map((month, idx) => {
-                        const heights = [32, 42, 56, 72, 68, 80];
-                        return (
-                          <div key={month} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', flex: 1 }}>
-                            <div style={{ width: '100%', height: `${heights[idx]}%`, minHeight: '32px', background: 'linear-gradient(180deg, #ff8c42, rgba(255, 140, 66, 0.35))', borderRadius: '20px 20px 0 0' }} />
-                            <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{month}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
+                  <div style={{ position: 'relative', height: '300px', width: '100%' }}>
+                    {reportsLoading ? (
+                      <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>
+                        Loading chart...
+                      </div>
+                    ) : reports && reports.chart_data ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={reports.chart_data} margin={{ top: 10, right: 10, bottom: 0, left: -20 }}>
+                          <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="rgba(15, 23, 42, 0.08)" />
+                          <XAxis 
+                            dataKey="name" 
+                            axisLine={false} 
+                            tickLine={false} 
+                            tick={{ fontSize: 12, fill: 'var(--text-secondary)', fontWeight: 500 }}
+                            dy={10}
+                          />
+                          <YAxis 
+                            axisLine={false} 
+                            tickLine={false} 
+                            tick={{ fontSize: 12, fill: 'var(--text-secondary)', fontWeight: 500 }}
+                            tickFormatter={(val) => `₹${val / 1000}K`}
+                            dx={-10}
+                          />
+                          <Tooltip 
+                            contentStyle={{ background: '#FFF', borderRadius: '12px', border: 'none', boxShadow: '0 8px 24px rgba(0,0,0,0.08)' }}
+                            itemStyle={{ color: '#ff8c42', fontWeight: 700 }}
+                            labelStyle={{ color: 'var(--text-secondary)', marginBottom: '4px' }}
+                            formatter={(value) => [`₹${value.toLocaleString()}`, 'Revenue']}
+                            cursor={{ fill: 'rgba(255, 140, 66, 0.04)' }}
+                          />
+                          <Bar 
+                            dataKey="revenue" 
+                            fill="#ff8c42" 
+                            radius={[6, 6, 0, 0]}
+                            barSize={32}
+                          />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>
+                        No data available
+                      </div>
+                    )}
                   </div>
                 </div>
 

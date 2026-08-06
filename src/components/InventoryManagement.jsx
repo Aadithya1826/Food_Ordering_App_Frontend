@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Package,
   TrendingDown,
@@ -25,6 +25,8 @@ const InventoryManagement = () => {
   const [newItem, setNewItem] = useState({ name: '', open_stock: 0, purchase: 0, issue: 0, unit: 'units' });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [viewMode, setViewMode] = useState('date'); // 'date' or 'overall'
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
 
   // Edit State
   const [showEditModal, setShowEditModal] = useState(false);
@@ -40,7 +42,8 @@ const InventoryManagement = () => {
   const fetchInventory = async () => {
     try {
       setLoading(true);
-      const data = await inventoryService.getInventory();
+      const params = viewMode === 'overall' ? { date: 'overall' } : { date: selectedDate };
+      const data = await inventoryService.getInventory(params);
       setInventory(data);
     } catch (err) {
       console.error('Failed to fetch inventory', err);
@@ -52,7 +55,7 @@ const InventoryManagement = () => {
 
   useEffect(() => {
     fetchInventory();
-  }, []);
+  }, [viewMode, selectedDate]);
 
   const handleAddItem = async (e) => {
     e.preventDefault();
@@ -72,6 +75,7 @@ const InventoryManagement = () => {
         issue: parseFloat(newItem.issue) || 0,
         balance: ((parseFloat(newItem.open_stock) || 0) + (parseFloat(newItem.purchase) || 0)) - (parseFloat(newItem.issue) || 0),
         unit: newItem.unit || 'units',
+        report_date: selectedDate
       });
       setShowAddModal(false);
       setNewItem({ name: '', open_stock: 0, purchase: 0, issue: 0, unit: 'units' });
@@ -151,7 +155,8 @@ const InventoryManagement = () => {
       setScanResults(results);
     } catch (err) {
       console.error('Scanning failed', err);
-      setError('Failed to scan document. Please check your Azure credentials and try again.');
+      const serverError = err.response?.data?.detail || err.message;
+      setError(`Scan Failed: ${serverError}`);
     } finally {
       setIsScanning(false);
     }
@@ -160,7 +165,8 @@ const InventoryManagement = () => {
   const handleBulkSave = async () => {
     try {
       setIsSavingBulk(true);
-      await inventoryService.bulkUpdateInventory(scanResults);
+      const itemsWithDate = scanResults.map(item => ({ ...item, report_date: selectedDate }));
+      await inventoryService.bulkUpdateInventory(itemsWithDate);
       setScanResults(null);
       setShowScanModal(false);
       setScanFiles({ front: null, back: null });
@@ -217,45 +223,124 @@ const InventoryManagement = () => {
             {inventory.length} items tracked • {lowStockItems.length} low stock
           </p>
         </div>
-        <button
-          onClick={() => setShowAddModal(true)}
-          style={{
-            background: '#f5620cff',
-            color: 'white',
-            border: 'none',
-            padding: '10px 20px',
-            borderRadius: '8px',
-            fontSize: '14px',
-            fontWeight: '600',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            cursor: 'pointer',
-          }}
-        >
-          <Plus size={18} />
-          Add Item
-        </button>
-        <button
-          onClick={() => setShowScanModal(true)}
-          style={{
-            background: '#f5620cff',
-            color: 'var(--text-primary)',
-            border: '1px solid #eaeaea',
-            padding: '10px 20px',
-            borderRadius: '8px',
-            fontSize: '14px',
-            fontWeight: '600',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            cursor: 'pointer',
-            marginLeft: '12px'
-          }}
-        >
-          <Camera size={18} />
-          Scan Sheet
-        </button>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <button
+            onClick={() => setViewMode('date')}
+            style={{
+              padding: '10px 16px',
+              borderRadius: '8px',
+              border: '1px solid #eaeaea',
+              background: viewMode === 'date' ? 'var(--primary)' : 'white',
+              color: viewMode === 'date' ? 'white' : '#333333',
+              fontWeight: '600',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              fontSize: '14px'
+            }}
+          >
+            Date-wise
+          </button>
+          
+          <button
+            onClick={() => setViewMode('overall')}
+            style={{
+              padding: '10px 16px',
+              borderRadius: '8px',
+              border: '1px solid #eaeaea',
+              background: viewMode === 'overall' ? 'var(--primary)' : 'white',
+              color: viewMode === 'overall' ? 'white' : '#333333',
+              fontWeight: '600',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              fontSize: '14px'
+            }}
+          >
+            Overall Stocks
+          </button>
+          
+          {viewMode === 'date' && (
+            <input 
+              type="date" 
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              style={{
+                padding: '9px 12px',
+                borderRadius: '8px',
+                border: '1px solid #eaeaea',
+                outline: 'none',
+                fontSize: '14px',
+                fontWeight: '500',
+                color: '#333333',
+                background: 'white'
+              }}
+            />
+          )}
+
+          <div style={{ width: '1px', height: '24px', background: '#eaeaea', margin: '0 8px' }}></div>
+
+          <button
+            onClick={() => window.dispatchEvent(new CustomEvent('navigate-dashboard', { detail: { page: 'consumption' } }))}
+            style={{
+              background: '#f9fafb',
+              color: '#333333',
+              border: '1px solid #eaeaea',
+              padding: '10px 16px',
+              borderRadius: '8px',
+              fontSize: '14px',
+              fontWeight: '600',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
+            <TrendingDown size={16} color="var(--primary)" />
+            Consumption Reports
+          </button>
+
+          <div style={{ width: '1px', height: '24px', background: '#eaeaea', margin: '0 8px' }}></div>
+
+          <button
+            onClick={() => setShowAddModal(true)}
+            style={{
+              background: '#f5620cff',
+              color: 'white',
+              border: 'none',
+              padding: '10px 20px',
+              borderRadius: '8px',
+              fontSize: '14px',
+              fontWeight: '600',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              cursor: 'pointer',
+            }}
+          >
+            <Plus size={18} />
+            Add Item
+          </button>
+          
+          <button
+            onClick={() => setShowScanModal(true)}
+            style={{
+              background: 'white',
+              color: '#f5620cff',
+              border: '1px solid #f5620cff',
+              padding: '10px 20px',
+              borderRadius: '8px',
+              fontSize: '14px',
+              fontWeight: '600',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              cursor: 'pointer',
+            }}
+          >
+            <Camera size={18} />
+            Scan Sheet
+          </button>
+        </div>
       </div>
 
       {/* Stats Cards */}
