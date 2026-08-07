@@ -19,8 +19,17 @@ const api = axios.create({
  */
 export function rewriteImageUrl(url) {
   if (!url) return url;
-  // Replace any absolute URL pointing at localhost:8000 with a relative path
-  return url.replace(/^https?:\/\/localhost(:\d+)?\//, '/');
+  
+  // Remove any explicit localhost references
+  let cleanUrl = url.replace(/^https?:\/\/localhost(:\d+)?/, '');
+  
+  // If we have a base API URL and the path is relative, prefix it
+  const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+  if (API_BASE_URL && cleanUrl.startsWith('/')) {
+    return `${API_BASE_URL.replace(/\/$/, '')}${cleanUrl}`;
+  }
+  
+  return cleanUrl;
 }
 
 // Add token to requests if available
