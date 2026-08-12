@@ -110,13 +110,19 @@ const OrdersManagement = () => {
   // Helper to format time ago
   const timeAgo = (dateString) => {
     if (!dateString) return 'Just now';
-    const dStr = dateString.endsWith('Z') ? dateString : dateString + 'Z';
-    const minutes = Math.max(0, Math.floor((new Date() - new Date(dStr)) / 60000));
+    let dStr = typeof dateString === 'string' ? dateString : dateString.toString();
+    if (!dStr.includes('Z') && !dStr.includes('+')) {
+      dStr = dStr.replace(' ', 'T') + 'Z';
+    }
+    const diffMs = new Date() - new Date(dStr);
+    const minutes = Math.floor(diffMs / 60000);
+    
     if (minutes < 1) return 'Just now';
-    if (minutes === 1) return '1 min ago';
     if (minutes < 60) return `${minutes} min ago`;
     const hours = Math.floor(minutes / 60);
-    return `${hours} hr ago`;
+    if (hours < 24) return `${hours} hr ago`;
+    const days = Math.floor(hours / 24);
+    return `${days} days ago`;
   };
 
   const currentColumns = orderMode === 'TAKEAWAY' ? TAKEAWAY_COLUMNS : DINE_IN_COLUMNS;

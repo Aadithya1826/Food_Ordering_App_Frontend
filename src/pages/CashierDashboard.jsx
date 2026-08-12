@@ -40,6 +40,7 @@ function CashierDashboard() {
   const [lastOrderType, setLastOrderType] = useState('take-away');
   const [lastFutureSale, setLastFutureSale] = useState(null);
   const [lastPaymentMethod, setLastPaymentMethod] = useState('');
+  const [restaurantData, setRestaurantData] = useState(null);
 
   const searchInputRef = useRef(null);
   const itemRefs = useRef([]);
@@ -65,6 +66,10 @@ function CashierDashboard() {
 
   useEffect(() => {
     if (!user || !user.restaurant_id) return;
+
+    api.get(`/api/v1/restaurants/${user.restaurant_id}`)
+      .then(res => setRestaurantData(res.data || res))
+      .catch(err => console.error('Failed to fetch restaurant', err));
 
     // Fetch menu items from backend
     menuService.getItems({ restaurant_id: user.restaurant_id })
@@ -142,10 +147,91 @@ function CashierDashboard() {
     submitBill();
     setShowInvoice(true);
     setRightPanelState('CART');
+    
+    const currentDate = new Date().toLocaleString('en-US', {
+      month: 'numeric', day: 'numeric', year: 'numeric',
+      hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true
+    });
+    
+    const totalAmt = cart.reduce((sum, item) => sum + item.amount, 0);
+    
+    const itemRows = cart.map(item => `
+      <div class="row">
+        <div class="item-name">${item.description}</div>
+        <div class="item-qty">${item.qty}</div>
+        <div class="item-amt">${item.amount.toFixed(2)}</div>
+      </div>
+    `).join('');
+
+    const resName = restaurantData?.name || 'DATA UDIPI HOTEL';
+    const resAddr = restaurantData?.address || 'M G R Nagar, Chennai';
+    const resPhone = restaurantData?.phone || '31595014';
+
+    const html = `
+      <html>
+        <head>
+          <style>
+            @page { margin: 0; }
+            body { font-family: monospace; font-size: 12px; margin: 0; padding: 5px; width: 72mm; color: #000; }
+            .center { text-align: center; }
+            h1 { font-size: 16px; margin: 5px 0; }
+            .divider { border-bottom: 1px dashed #000; margin: 5px 0; }
+            .row { display: flex; justify-content: space-between; }
+            .item-name { flex: 2; word-break: break-all; padding-right: 5px; }
+            .item-qty { width: 30px; text-align: right; }
+            .item-amt { width: 60px; text-align: right; }
+            .bold { font-weight: bold; }
+          </style>
+        </head>
+        <body>
+          <div class="center">
+            <h1>${resName}</h1>
+            <div>${resAddr}</div>
+            <div>Phone: ${resPhone}</div>
+            <div class="bold" style="margin-top: 5px;">COUNTER POS</div>
+          </div>
+          <div class="divider"></div>
+          <div class="row">
+            <span class="bold">Bill No: ${billNo}</span>
+            <span>${currentDate}</span>
+          </div>
+          <div>
+            <span class="bold">Mode: </span>${orderType === 'take-away' ? 'Take Away' : 'Dine In'} | 
+            <span class="bold">Pay: </span>${paymentMethod || 'Cash'}
+          </div>
+          ${futureSale.name ? `<div>Future Sale: ${futureSale.name}</div>` : ''}
+          <div class="divider"></div>
+          <div class="row bold">
+            <div class="item-name">Item</div>
+            <div class="item-qty">Qty</div>
+            <div class="item-amt">Amt</div>
+          </div>
+          <div class="divider"></div>
+          ${itemRows}
+          <div class="divider"></div>
+          <div class="row bold" style="font-size: 14px;">
+            <span>TOTAL</span>
+            <span>₹${totalAmt.toFixed(2)}</span>
+          </div>
+          <div class="divider"></div>
+          <div class="center" style="margin-top: 10px;">Thank you! Visit again.</div>
+          <div class="center" style="margin-top: 10px; font-size: 10px;">Techwizard AI partners<br/>vasu@t-wi.com</div>
+        </body>
+      </html>
+    `;
+
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
+    iframe.contentWindow.document.open();
+    iframe.contentWindow.document.write(html);
+    iframe.contentWindow.document.close();
+    iframe.contentWindow.focus();
     setTimeout(() => {
-      window.print();
+      iframe.contentWindow.print();
+      document.body.removeChild(iframe);
       setShowInvoice(false);
-    }, 100);
+    }, 500);
   };
 
   const handleLogout = async () => {
@@ -674,6 +760,7 @@ function CashierDashboard() {
         lastFutureSale={lastFutureSale}
         lastCart={lastCart}
         lastBillAmt={lastBillAmt}
+        restaurantData={restaurantData}
       />
 
       <FutureSaleModal
