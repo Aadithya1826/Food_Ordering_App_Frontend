@@ -215,7 +215,7 @@ function CashierDashboard() {
           </div>
           <div class="divider"></div>
           <div class="center" style="margin-top: 10px;">Thank you! Visit again.</div>
-          <div class="center" style="margin-top: 10px; font-size: 10px;">Techwizard AI partners<br/>vasu@t-wi.com</div>
+          <div class="center" style="margin-top: 10px; font-size: 10px;">Techwizard AI partners<br/>hello@t-wi.com</div>
         </body>
       </html>
     `;

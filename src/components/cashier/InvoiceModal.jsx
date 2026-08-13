@@ -80,7 +80,7 @@ const InvoiceModal = ({ show, lastBillNo, lastOrderType, lastPaymentMethod, last
 
         <div style={{ textAlign: 'center', marginTop: '16px', fontSize: '11px', color: '#555', borderTop: '1px solid #ddd', paddingTop: '8px' }}>
           <div>Techwizard AI partners</div>
-          <div>vasu@t-wi.com</div>
+          <div>hello@t-wi.com</div>
         </div>
 
       </div>
