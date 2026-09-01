@@ -44,7 +44,7 @@ const VoiceWidget = ({ onNavigate }) => {
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const streamRef = useRef(null);
-  const analyserRef = useRef(null);
+  const vadRef = useRef(null);
   const silenceTimerRef = useRef(null);
   const audioContextRef = useRef(null);
   const currentAudioRef = useRef(null);
@@ -93,6 +93,37 @@ const VoiceWidget = ({ onNavigate }) => {
     };
   }, []);
 
+  const audioQueueRef = useRef([]);
+  const isPlayingAudioRef = useRef(false);
+
+  const processAudioQueue = async (wasVoiceInput) => {
+    if (audioQueueRef.current.length === 0) {
+      isPlayingAudioRef.current = false;
+      if (wasVoiceInput && isExpanded && isVoiceModeRef.current) startListening();
+      return;
+    }
+    isPlayingAudioRef.current = true;
+    const base64Data = audioQueueRef.current.shift();
+    
+    try {
+      if (currentAudioRef.current) {
+        currentAudioRef.current.pause();
+      }
+      const audio = new Audio(`data:audio/mp3;base64,${base64Data}`);
+      audio.playbackRate = 1.15;
+      currentAudioRef.current = audio;
+      
+      audio.onended = () => {
+        processAudioQueue(wasVoiceInput);
+      };
+      
+      await audio.play();
+    } catch (e) {
+      console.error("Audio playback error:", e);
+      processAudioQueue(wasVoiceInput);
+    }
+  };
+
   const handleUserVoiceInput = async (text, base64Audio = null) => {
     const trimmedText = text.trim();
     if (!trimmedText && !base64Audio) return;
@@ -106,7 +137,6 @@ const VoiceWidget = ({ onNavigate }) => {
     if (!isExpanded) setIsExpanded(true);
 
     try {
-      // Build history payload (keep more messages so state isn't lost in long workflows)
       const historyToSend = messages.slice(-40).map(m => {
         let txt = m.text;
         if (m.tool_name && m.tool_result) {
@@ -128,67 +158,95 @@ const VoiceWidget = ({ onNavigate }) => {
         payload.audio_base64 = base64Audio;
       }
 
-      // Send to backend MCP
-      const response = await api.post('/api/v1/mcp/voice/ask', payload);
+      const token = localStorage.getItem('access_token');
+      const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
-      const replyText = response.data.assistant_text;
-
-      // Update user message with transcribed text and add assistant response
-      setMessages((prev) => {
-        const newMessages = [...prev];
-        if (base64Audio && response.data.transcribed_user_text) {
-          const userMsgIndex = newMessages.findIndex(m => m.id === userMsgId);
-          if (userMsgIndex !== -1) {
-            newMessages[userMsgIndex] = { ...newMessages[userMsgIndex], text: response.data.transcribed_user_text };
-          }
-        }
-        newMessages.push({ 
-          id: Date.now() + 1, 
-          role: 'assistant', 
-          text: replyText,
-          tool_name: response.data.tool_name,
-          tool_result: response.data.tool_result 
-        });
-        return newMessages;
+      const response = await fetch(`${API_BASE_URL}/api/v1/mcp/voice/ask`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify(payload)
       });
 
-      // Play audio payload if not muted
-      if (response.data.audio_payload && !isSpeakerMuted) {
-        try {
-          if (currentAudioRef.current) {
-            currentAudioRef.current.pause();
-          }
-          const audio = new Audio(`data:audio/mp3;base64,${response.data.audio_payload}`);
-          audio.playbackRate = 1.15;
-          currentAudioRef.current = audio;
-          if (base64Audio) {
-            audio.onended = () => {
-              if (isExpanded && isVoiceModeRef.current) {
-                startListening();
-              }
-            };
-          }
-          await audio.play();
-        } catch (audioErr) {
-          console.error("Audio playback failed:", audioErr);
-          if (base64Audio && isExpanded && isVoiceModeRef.current) startListening();
-        }
-      } else if (base64Audio && isExpanded && isVoiceModeRef.current) {
-        // If muted or no audio, restart listening immediately
-        startListening();
+      if (!response.ok) {
+        throw new Error(`Server returned ${response.status}`);
       }
 
-      // Handle navigation tool
-      if (response.data.tool_name === 'navigate_to_page' && response.data.tool_result && onNavigate) {
-        onNavigate(response.data.tool_result.page, response.data.tool_result.subtab);
-      }
-      
-      // Handle logout tool
-      if (response.data.tool_name === 'trigger_logout') {
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('user');
-        sessionStorage.removeItem('voice_chat_history');
-        window.location.href = '/';
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder("utf-8");
+
+      const assistantMsgId = Date.now() + 1;
+      setMessages((prev) => [...prev, {
+        id: assistantMsgId,
+        role: 'assistant',
+        text: "",
+        tool_name: null,
+        tool_result: null
+      }]);
+
+      let buffer = "";
+      let currentLiveText = "";
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        const lines = buffer.split('\n\n');
+        buffer = lines.pop(); // keep the incomplete line in the buffer
+
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            const dataStr = line.substring(6);
+            if (dataStr === "[DONE]") continue;
+            try {
+              const data = JSON.parse(dataStr);
+              if (data.type === "llm_chunk") {
+                currentLiveText += data.chunk;
+                const match = currentLiveText.match(/"assistant_text"\s*:\s*"((?:[^"\\]|\\.)*)/);
+                if (match) {
+                  let textSoFar = match[1].replace(/\\"/g, '"').replace(/\\n/g, '\n');
+                  setMessages((prev) => prev.map(m => m.id === assistantMsgId ? { ...m, text: textSoFar } : m));
+                }
+              } else if (data.type === "tool_call") {
+                setMessages((prev) => prev.map(m => m.id === assistantMsgId ? { ...m, tool_name: data.tool_name, tool_result: data.tool_result } : m));
+
+                if (data.tool_name === 'navigate_to_page' && data.tool_result && onNavigate) {
+                  onNavigate(data.tool_result.page, data.tool_result.subtab);
+                }
+                if (data.tool_name === 'trigger_logout') {
+                  localStorage.removeItem('access_token');
+                  localStorage.removeItem('user');
+                  sessionStorage.removeItem('voice_chat_history');
+                  window.location.href = '/';
+                }
+              } else if (data.type === "second_pass_start") {
+                currentLiveText = "";
+              } else if (data.type === "transcription") {
+                if (base64Audio) {
+                  setMessages((prev) => prev.map(m => m.id === userMsgId ? { ...m, text: data.text } : m));
+                }
+              } else if (data.type === "audio") {
+                if (!isSpeakerMuted && data.payload && data.payload !== "null") {
+                  audioQueueRef.current.push(data.payload);
+                  if (!isPlayingAudioRef.current) {
+                    processAudioQueue(!!base64Audio);
+                  }
+                } else if (!isPlayingAudioRef.current && base64Audio && isExpanded && isVoiceModeRef.current) {
+                  // Only start listening if nothing is playing or queued
+                  startListening();
+                }
+              } else if (data.type === "error") {
+                console.error("Server error:", data.message);
+              }
+            } catch (e) {
+              console.error("JSON parse error:", e);
+            }
+          }
+        }
       }
 
     } catch (error) {
@@ -234,39 +292,40 @@ const VoiceWidget = ({ onNavigate }) => {
       setIsListening(true);
       setLiveText("Recording audio...");
 
-      // Web Audio API VAD (Voice Activity Detection)
-      audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
-      const source = audioContextRef.current.createMediaStreamSource(stream);
-      analyserRef.current = audioContextRef.current.createAnalyser();
-      analyserRef.current.fftSize = 512;
-      source.connect(analyserRef.current);
-
-      const checkSilence = () => {
-        if (mediaRecorder.state !== 'recording') return;
-        const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
-        analyserRef.current.getByteFrequencyData(dataArray);
-
-        let sum = 0;
-        for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
-        const volume = sum / dataArray.length;
-
-        if (volume > 15) { // User is speaking
-          if (silenceTimerRef.current) {
-            clearTimeout(silenceTimerRef.current);
-            silenceTimerRef.current = null;
-          }
-        } else { // Silence
-          if (!silenceTimerRef.current) {
-            silenceTimerRef.current = setTimeout(() => {
-              if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-                mediaRecorderRef.current.stop();
+      // WebRTC Silero VAD (Voice Activity Detection)
+      if (!vadRef.current) {
+        try {
+          const myvad = await window.vad.MicVAD.new({
+            stream: stream,
+            positiveSpeechThreshold: 0.85, // High threshold to ignore noise
+            negativeSpeechThreshold: 0.6,
+            minSpeechFrames: 5,            // Requires a longer burst of sound
+            preSpeechPadFrames: 5,
+            redemptionFrames: 20,
+            onSpeechStart: () => {
+              if (silenceTimerRef.current) {
+                clearTimeout(silenceTimerRef.current);
+                silenceTimerRef.current = null;
               }
-            }, 2500); // Wait 2.5s of silence before sending
-          }
+            },
+            onSpeechEnd: () => {
+              if (!silenceTimerRef.current) {
+                silenceTimerRef.current = setTimeout(() => {
+                  if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+                    mediaRecorderRef.current.stop();
+                  }
+                }, 500); // 500ms grace period after speech officially ends
+              }
+            }
+          });
+          myvad.start();
+          vadRef.current = myvad;
+        } catch (err) {
+          console.error("VAD initialization failed:", err);
         }
-        requestAnimationFrame(checkSilence);
-      };
-      requestAnimationFrame(checkSilence);
+      } else {
+        vadRef.current.start();
+      }
 
     } catch (err) {
       console.error("Error accessing microphone:", err);
@@ -382,43 +441,48 @@ const VoiceWidget = ({ onNavigate }) => {
 
         {/* Chat Area */}
         <div style={{ flex: 1, padding: '20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px', background: '#f8f9fa' }}>
-          {messages.map((msg) => (
-            <div key={msg.id} style={{ display: 'flex', gap: '10px', alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '85%' }}>
-              {msg.role === 'assistant' && (
-                <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 5px rgba(0,0,0,0.05)', flexShrink: 0, marginTop: '4px' }}>
-                  <img src={ChefMascot} alt="Chef" style={{ width: '20px', height: '20px', borderRadius: '50%' }} />
-                </div>
-              )}
+          {messages.map((msg) => {
+            // Don't render completely empty assistant messages
+            if (msg.role === 'assistant' && !msg.text && !msg.tool_name) return null;
 
-              <div style={{
-                background: msg.role === 'user' ? '#ff5722' : 'white',
-                color: msg.role === 'user' ? 'white' : '#333',
-                padding: msg.text === "🎤 Audio Message" ? '8px 16px' : '12px 16px',
-                borderRadius: '16px',
-                borderTopLeftRadius: msg.role === 'assistant' ? '4px' : '16px',
-                borderTopRightRadius: msg.role === 'user' ? '4px' : '16px',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-                fontSize: '14px',
-                lineHeight: '1.5',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                minHeight: '42px'
-              }}>
-                {msg.text === "🎤 Audio Message" ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <span style={{ width: '3px', height: '12px', background: 'white', borderRadius: '2px', animation: 'pulse 0.8s ease-in-out infinite alternate', opacity: 0.8 }} />
-                    <span style={{ width: '3px', height: '18px', background: 'white', borderRadius: '2px', animation: 'pulse 0.8s ease-in-out infinite alternate 0.2s', opacity: 0.8 }} />
-                    <span style={{ width: '3px', height: '10px', background: 'white', borderRadius: '2px', animation: 'pulse 0.8s ease-in-out infinite alternate 0.4s', opacity: 0.8 }} />
-                    <span style={{ width: '3px', height: '16px', background: 'white', borderRadius: '2px', animation: 'pulse 0.8s ease-in-out infinite alternate 0.6s', opacity: 0.8 }} />
-                    <span style={{ width: '3px', height: '8px', background: 'white', borderRadius: '2px', animation: 'pulse 0.8s ease-in-out infinite alternate 0.8s', opacity: 0.8 }} />
+            return (
+              <div key={msg.id} style={{ display: 'flex', gap: '10px', alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '85%' }}>
+                {msg.role === 'assistant' && (
+                  <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 5px rgba(0,0,0,0.05)', flexShrink: 0, marginTop: '4px' }}>
+                    <img src={ChefMascot} alt="Chef" style={{ width: '20px', height: '20px', borderRadius: '50%' }} />
                   </div>
-                ) : (
-                  msg.text
                 )}
+
+                <div style={{
+                  background: msg.role === 'user' ? '#ff5722' : 'white',
+                  color: msg.role === 'user' ? 'white' : '#333',
+                  padding: msg.text === "🎤 Audio Message" ? '8px 16px' : '12px 16px',
+                  borderRadius: '16px',
+                  borderTopLeftRadius: msg.role === 'assistant' ? '4px' : '16px',
+                  borderTopRightRadius: msg.role === 'user' ? '4px' : '16px',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                  fontSize: '14px',
+                  lineHeight: '1.5',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  minHeight: '42px'
+                }}>
+                  {msg.text === "🎤 Audio Message" ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span style={{ width: '3px', height: '12px', background: 'white', borderRadius: '2px', animation: 'pulse 0.8s ease-in-out infinite alternate', opacity: 0.8 }} />
+                      <span style={{ width: '3px', height: '18px', background: 'white', borderRadius: '2px', animation: 'pulse 0.8s ease-in-out infinite alternate 0.2s', opacity: 0.8 }} />
+                      <span style={{ width: '3px', height: '10px', background: 'white', borderRadius: '2px', animation: 'pulse 0.8s ease-in-out infinite alternate 0.4s', opacity: 0.8 }} />
+                      <span style={{ width: '3px', height: '16px', background: 'white', borderRadius: '2px', animation: 'pulse 0.8s ease-in-out infinite alternate 0.6s', opacity: 0.8 }} />
+                      <span style={{ width: '3px', height: '8px', background: 'white', borderRadius: '2px', animation: 'pulse 0.8s ease-in-out infinite alternate 0.8s', opacity: 0.8 }} />
+                    </div>
+                  ) : (
+                    msg.text || (msg.tool_name ? `Executing: ${msg.tool_name}` : "...")
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
 
           {liveText && (
             <div style={{ display: 'flex', gap: '10px', alignSelf: 'flex-end', maxWidth: '85%', opacity: 0.8 }}>

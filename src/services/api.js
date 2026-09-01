@@ -23,6 +23,11 @@ export function rewriteImageUrl(url) {
   // Remove any explicit localhost references
   let cleanUrl = url.replace(/^https?:\/\/localhost(:\d+)?/, '');
   
+  // If the url is just a filename (no slashes, no http), assume it's in /static/images/
+  if (!cleanUrl.includes('/') && !cleanUrl.startsWith('http')) {
+    cleanUrl = `/static/images/${cleanUrl}`;
+  }
+  
   // If we have a base API URL and the path is relative, prefix it
   const API_BASE_URL = import.meta.env.VITE_API_URL || '';
   if (API_BASE_URL && cleanUrl.startsWith('/')) {

@@ -249,7 +249,7 @@ const SettingsManagement = () => {
               <div style={{ padding: '16px', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
                   <span style={{ fontSize: '11px', color: '#888', marginBottom: '4px' }}>Phone Number</span>
-                  <input type="text" name="phone" value={settings.phone} onChange={handleChange} style={{ border: 'none', fontSize: '14px', fontWeight: '500', outline: 'none', width: '100%', color: '#111' }} />
+                  <input type="text" name="phone" value={settings.phone || ''} onChange={handleChange} style={{ border: 'none', fontSize: '14px', fontWeight: '500', outline: 'none', width: '100%', color: '#111' }} />
                 </div>
               </div>
               <div style={{ padding: '16px', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -261,7 +261,7 @@ const SettingsManagement = () => {
               <div style={{ padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
                   <span style={{ fontSize: '11px', color: '#888', marginBottom: '4px' }}>Address</span>
-                  <input type="text" name="address" value={settings.address} onChange={handleChange} style={{ border: 'none', fontSize: '14px', fontWeight: '500', outline: 'none', width: '100%', color: '#111' }} />
+                  <input type="text" name="address" value={settings.address || ''} onChange={handleChange} style={{ border: 'none', fontSize: '14px', fontWeight: '500', outline: 'none', width: '100%', color: '#111' }} />
                 </div>
               </div>
             </div>
@@ -328,19 +328,19 @@ const SettingsManagement = () => {
           <div className="grid-responsive-2" style={{ gap: '20px' }}>
             <div>
               <label style={labelStyle}>Restaurant Name</label>
-              <input type="text" name="name" value={settings.name} onChange={handleChange} style={inputStyle} placeholder="Data Udipi" />
+              <input type="text" name="name" value={settings.name || ''} onChange={handleChange} style={inputStyle} placeholder="Data Udipi" />
             </div>
             <div>
               <label style={labelStyle}>Phone</label>
-              <input type="text" name="phone" value={settings.phone} onChange={handleChange} style={inputStyle} placeholder="support@dataudipi.com" />
+              <input type="text" name="phone" value={settings.phone || ''} onChange={handleChange} style={inputStyle} placeholder="support@dataudipi.com" />
             </div>
             <div>
               <label style={labelStyle}>GST Number</label>
-              <input type="text" name="gst_number" value={settings.gst_number} onChange={handleChange} style={inputStyle} placeholder="GSTIN" />
+              <input type="text" name="gst_number" value={settings.gst_number || ''} onChange={handleChange} style={inputStyle} placeholder="GSTIN" />
             </div>
             <div style={{ gridColumn: '1 / -1' }}>
               <label style={labelStyle}>Address</label>
-              <input type="text" name="address" value={settings.address} onChange={handleChange} style={inputStyle} placeholder="Asia/Kolkata (IST)" />
+              <input type="text" name="address" value={settings.address || ''} onChange={handleChange} style={inputStyle} placeholder="Asia/Kolkata (IST)" />
             </div>
           </div>
         </div>
@@ -357,11 +357,11 @@ const SettingsManagement = () => {
           <div className="grid-responsive-2" style={{ gap: '20px' }}>
             <div>
               <label style={labelStyle}>Opening</label>
-              <input type="time" name="opening_time" value={settings.opening_time} onChange={handleChange} style={inputStyle} />
+              <input type="time" name="opening_time" value={settings.opening_time || ''} onChange={handleChange} style={inputStyle} />
             </div>
             <div>
               <label style={labelStyle}>Closing</label>
-              <input type="time" name="closing_time" value={settings.closing_time} onChange={handleChange} style={inputStyle} />
+              <input type="time" name="closing_time" value={settings.closing_time || ''} onChange={handleChange} style={inputStyle} />
             </div>
           </div>
         </div>
@@ -424,15 +424,15 @@ const SettingsManagement = () => {
           <div className="grid-responsive" style={{ gap: '20px' }}>
             <div>
               <label style={labelStyle}>Tax Rate (%)</label>
-              <input type="number" name="tax_rate" value={settings.tax_rate} onChange={handleChange} style={inputStyle} min="0" step="0.1" />
+              <input type="number" name="tax_rate" value={settings.tax_rate ?? 0} onChange={handleChange} style={inputStyle} min="0" step="0.1" />
             </div>
             <div>
               <label style={labelStyle}>Service Charge (%)</label>
-              <input type="number" name="service_charge" value={settings.service_charge} onChange={handleChange} style={inputStyle} min="0" step="0.1" />
+              <input type="number" name="service_charge" value={settings.service_charge ?? 0} onChange={handleChange} style={inputStyle} min="0" step="0.1" />
             </div>
             <div>
               <label style={labelStyle}>Packaging Charge (₹)</label>
-              <input type="number" name="packaging_charge" value={settings.packaging_charge} onChange={handleChange} style={inputStyle} min="0" />
+              <input type="number" name="packaging_charge" value={settings.packaging_charge ?? 0} onChange={handleChange} style={inputStyle} min="0" />
             </div>
           </div>
         </div>

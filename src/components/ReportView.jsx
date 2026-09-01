@@ -257,7 +257,7 @@ const ReportView = ({ type, onBack }) => {
             ) : (
               reportData.items.map((item, idx) => (
                 <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 55px 45px 65px', gap: '4px', margin: '4px 0' }}>
-                  <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.name}</span>
+                  <span style={{ wordBreak: 'break-word' }}>{item.name}</span>
                   <span style={{ textAlign: 'right' }}>{item.rate.toFixed(2)}</span>
                   <span style={{ textAlign: 'right' }}>{item.qty.toFixed(2)}</span>
                   <span style={{ textAlign: 'right' }}>{item.amount.toFixed(2)}</span>

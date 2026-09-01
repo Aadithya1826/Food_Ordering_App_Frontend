@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Clock, ChefHat, CheckCircle2, Truck, Search, SlidersHorizontal } from 'lucide-react';
 import { orderService } from '../services/api';
 
@@ -22,6 +22,37 @@ const OrdersManagement = () => {
   const [activeMobileTab, setActiveMobileTab] = useState('PENDING');
   const [selectedKOTOrder, setSelectedKOTOrder] = useState(null);
   const [orderMode, setOrderMode] = useState('DINE_IN'); // 'DINE_IN' | 'TAKEAWAY'
+  const prevMaxOrderIdRef = useRef(null);
+
+  const playNotificationSound = () => {
+    try {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (AudioContext) {
+        const ctx = new AudioContext();
+        const playNote = (freq, startTime, duration) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.type = 'sine';
+          osc.frequency.value = freq;
+          gain.gain.setValueAtTime(0, startTime);
+          gain.gain.linearRampToValueAtTime(0.5, startTime + 0.05);
+          gain.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
+          osc.start(startTime);
+          osc.stop(startTime + duration);
+        };
+        const now = ctx.currentTime;
+        playNote(523.25, now, 0.4); // C5
+        playNote(659.25, now + 0.15, 0.6); // E5
+      }
+      if (navigator.vibrate) {
+        navigator.vibrate([200, 100, 200]);
+      }
+    } catch (e) {
+      console.log('Audio playback failed', e);
+    }
+  };
 
   const isTakeaway = (order) => {
     return (!order.table_number || order.table_number === 'N/A' || order.table_number.toString().toLowerCase() === 'takeaway');
@@ -55,7 +86,21 @@ const OrdersManagement = () => {
   const fetchOrders = async () => {
     try {
       const data = await orderService.getLiveOrders();
-      setOrders(data);
+      const currentOrders = Array.isArray(data) ? data : [];
+      
+      if (currentOrders.length > 0) {
+        const currentMaxId = Math.max(...currentOrders.map(o => o.order_id));
+        
+        if (prevMaxOrderIdRef.current !== null && currentMaxId > prevMaxOrderIdRef.current) {
+          playNotificationSound();
+        }
+        
+        if (prevMaxOrderIdRef.current === null || currentMaxId > prevMaxOrderIdRef.current) {
+          prevMaxOrderIdRef.current = currentMaxId;
+        }
+      }
+      
+      setOrders(currentOrders);
     } catch (err) {
       console.error('Error fetching live orders:', err);
     } finally {
