@@ -103,21 +103,31 @@ const VoiceWidget = ({ onNavigate }) => {
       return;
     }
     isPlayingAudioRef.current = true;
-    const base64Data = audioQueueRef.current.shift();
+    const { base64Data, fallbackText } = audioQueueRef.current.shift();
     
     try {
       if (currentAudioRef.current) {
         currentAudioRef.current.pause();
       }
-      const audio = new Audio(`data:audio/mp3;base64,${base64Data}`);
-      audio.playbackRate = 1.15;
-      currentAudioRef.current = audio;
       
-      audio.onended = () => {
+      if (base64Data && base64Data !== "null") {
+        const audio = new Audio(`data:audio/mp3;base64,${base64Data}`);
+        audio.playbackRate = 1.15;
+        currentAudioRef.current = audio;
+        
+        audio.onended = () => {
+          processAudioQueue(wasVoiceInput);
+        };
+        
+        await audio.play();
+      } else if (fallbackText && 'speechSynthesis' in window) {
+        const utterance = new SpeechSynthesisUtterance(fallbackText);
+        utterance.onend = () => processAudioQueue(wasVoiceInput);
+        utterance.onerror = () => processAudioQueue(wasVoiceInput);
+        window.speechSynthesis.speak(utterance);
+      } else {
         processAudioQueue(wasVoiceInput);
-      };
-      
-      await audio.play();
+      }
     } catch (e) {
       console.error("Audio playback error:", e);
       processAudioQueue(wasVoiceInput);
@@ -230,8 +240,8 @@ const VoiceWidget = ({ onNavigate }) => {
                   setMessages((prev) => prev.map(m => m.id === userMsgId ? { ...m, text: data.text } : m));
                 }
               } else if (data.type === "audio") {
-                if (!isSpeakerMuted && data.payload && data.payload !== "null") {
-                  audioQueueRef.current.push(data.payload);
+                if (!isSpeakerMuted) {
+                  audioQueueRef.current.push({ base64Data: data.payload, fallbackText: data.fallbackText });
                   if (!isPlayingAudioRef.current) {
                     processAudioQueue(!!base64Audio);
                   }
