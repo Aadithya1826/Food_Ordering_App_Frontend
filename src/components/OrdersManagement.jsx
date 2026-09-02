@@ -16,6 +16,13 @@ const TAKEAWAY_COLUMNS = [
   { id: 'SERVED', title: 'Picked up', icon: Truck, color: '#666', bg: 'rgba(100, 100, 100, 0.1)', iconBg: '#888', defaultBg: '#fff' },
 ];
 
+const DELIVERY_COLUMNS = [
+  { id: 'PENDING', title: 'New Orders', icon: Clock, color: '#ff8c42', bg: 'rgba(255, 140, 66, 0.1)', iconBg: '#ff8c42', defaultBg: '#fff' },
+  { id: 'PREPARING', title: 'Preparing', icon: ChefHat, color: '#fbb117', bg: 'rgba(251, 177, 23, 0.1)', iconBg: '#fbb117', defaultBg: '#fff' },
+  { id: 'READY', title: 'Ready for Delivery', icon: CheckCircle2, color: '#2d7a4a', bg: 'rgba(45, 122, 74, 0.1)', iconBg: '#2d7a4a', defaultBg: '#fff' },
+  { id: 'SERVED', title: 'Out for Delivery', icon: Truck, color: '#666', bg: 'rgba(100, 100, 100, 0.1)', iconBg: '#888', defaultBg: '#fff' },
+];
+
 const OrdersManagement = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -54,10 +61,17 @@ const OrdersManagement = () => {
     }
   };
 
-  const isTakeaway = (order) => {
-    return (!order.table_number || order.table_number === 'N/A' || order.table_number.toString().toLowerCase() === 'takeaway');
+  const isDelivery = (order) => {
+    return order.order_type?.toLowerCase() === 'delivery';
   };
 
+  const isTakeaway = (order) => {
+    return !isDelivery(order) && (!order.table_number || order.table_number === 'N/A' || order.table_number.toString().toLowerCase() === 'takeaway');
+  };
+
+  const isDineIn = (order) => {
+    return !isDelivery(order) && !isTakeaway(order);
+  };
   useEffect(() => {
     fetchOrders();
     const interval = setInterval(fetchOrders, 10000); // Polling every 10s
@@ -170,10 +184,11 @@ const OrdersManagement = () => {
     return `${days} days ago`;
   };
 
-  const currentColumns = orderMode === 'TAKEAWAY' ? TAKEAWAY_COLUMNS : DINE_IN_COLUMNS;
-  const filteredOrders = orders.filter(order => orderMode === 'TAKEAWAY' ? isTakeaway(order) : !isTakeaway(order));
-  const activeDineInOrdersCount = orders.filter(o => !isTakeaway(o) && o.status !== 'SERVED').length;
+  const currentColumns = orderMode === 'TAKEAWAY' ? TAKEAWAY_COLUMNS : orderMode === 'DELIVERY' ? DELIVERY_COLUMNS : DINE_IN_COLUMNS;
+  const filteredOrders = orders.filter(order => orderMode === 'TAKEAWAY' ? isTakeaway(order) : orderMode === 'DELIVERY' ? isDelivery(order) : isDineIn(order));
+  const activeDineInOrdersCount = orders.filter(o => isDineIn(o) && o.status !== 'SERVED').length;
   const activeTakeawayOrdersCount = orders.filter(o => isTakeaway(o) && o.status !== 'SERVED').length;
+  const activeDeliveryOrdersCount = orders.filter(o => isDelivery(o) && o.status !== 'SERVED').length;
 
   if (loading) {
     return <div style={{ padding: '24px', color: 'var(--text-secondary)' }}>Loading orders...</div>;
@@ -227,7 +242,7 @@ const OrdersManagement = () => {
           style={{ display: 'flex', alignItems: 'center', padding: '8px 24px', borderRadius: '20px', border: 'none', background: orderMode === 'DINE_IN' ? 'white' : 'transparent', color: orderMode === 'DINE_IN' ? '#111' : '#666', fontWeight: '700', fontSize: '14px', cursor: 'pointer', boxShadow: orderMode === 'DINE_IN' ? '0 2px 8px rgba(0,0,0,0.05)' : 'none', transition: 'all 0.2s' }}
         >
           Dine-In
-          {orderMode === 'TAKEAWAY' && activeDineInOrdersCount > 0 && (
+          {orderMode !== 'DINE_IN' && activeDineInOrdersCount > 0 && (
             <span className="blinking-badge">{activeDineInOrdersCount}</span>
           )}
         </button>
@@ -236,8 +251,17 @@ const OrdersManagement = () => {
           style={{ display: 'flex', alignItems: 'center', padding: '8px 24px', borderRadius: '20px', border: 'none', background: orderMode === 'TAKEAWAY' ? 'white' : 'transparent', color: orderMode === 'TAKEAWAY' ? '#111' : '#666', fontWeight: '700', fontSize: '14px', cursor: 'pointer', boxShadow: orderMode === 'TAKEAWAY' ? '0 2px 8px rgba(0,0,0,0.05)' : 'none', transition: 'all 0.2s' }}
         >
           Takeaway
-          {orderMode === 'DINE_IN' && activeTakeawayOrdersCount > 0 && (
+          {orderMode !== 'TAKEAWAY' && activeTakeawayOrdersCount > 0 && (
             <span className="blinking-badge">{activeTakeawayOrdersCount}</span>
+          )}
+        </button>
+        <button 
+          onClick={() => setOrderMode('DELIVERY')}
+          style={{ display: 'flex', alignItems: 'center', padding: '8px 24px', borderRadius: '20px', border: 'none', background: orderMode === 'DELIVERY' ? 'white' : 'transparent', color: orderMode === 'DELIVERY' ? '#111' : '#666', fontWeight: '700', fontSize: '14px', cursor: 'pointer', boxShadow: orderMode === 'DELIVERY' ? '0 2px 8px rgba(0,0,0,0.05)' : 'none', transition: 'all 0.2s' }}
+        >
+          Delivery
+          {orderMode !== 'DELIVERY' && activeDeliveryOrdersCount > 0 && (
+            <span className="blinking-badge">{activeDeliveryOrdersCount}</span>
           )}
         </button>
       </div>
@@ -310,7 +334,7 @@ const OrdersManagement = () => {
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', borderBottom: '1px solid #f5f5f5', paddingBottom: '12px' }}>
                 <span style={{ fontSize: '11px', color: '#888', fontWeight: '500' }}>
-                  {(!order.table_number || order.table_number === 'N/A' || order.table_number.toString().toLowerCase() === 'takeaway') ? (order.order_type || 'Takeaway') : `Table ${order.table_number}`}
+                  {isDelivery(order) ? 'Delivery' : isTakeaway(order) ? 'Takeaway' : `Table ${order.table_number}`}
                 </span>
                 <span style={{ fontSize: '14px', fontWeight: '800', color: '#111' }}>₹ {order.total_amount}</span>
               </div>
@@ -321,9 +345,9 @@ const OrdersManagement = () => {
                 ) : order.status === 'PREPARING' ? (
                   <button onClick={() => updateOrderStatus(order.order_id, 'READY')} style={{ flex: 1, padding: '10px 0', background: '#ffb300', border: 'none', borderRadius: '20px', fontSize: '12px', fontWeight: '700', color: 'white' }}>Mark Ready</button>
                 ) : order.status === 'READY' ? (
-                  <button onClick={() => updateOrderStatus(order.order_id, 'SERVED')} style={{ flex: 1, padding: '10px 0', background: '#2d7a4a', border: 'none', borderRadius: '20px', fontSize: '12px', fontWeight: '700', color: 'white' }}>{orderMode === 'TAKEAWAY' ? 'Mark Picked up' : 'Mark Served'}</button>
+                  <button onClick={() => updateOrderStatus(order.order_id, 'SERVED')} style={{ flex: 1, padding: '10px 0', background: '#2d7a4a', border: 'none', borderRadius: '20px', fontSize: '12px', fontWeight: '700', color: 'white' }}>{orderMode === 'TAKEAWAY' ? 'Mark Picked up' : orderMode === 'DELIVERY' ? 'Mark Dispatched' : 'Mark Served'}</button>
                 ) : (
-                  <button style={{ flex: 1, padding: '10px 0', background: '#eee', border: 'none', borderRadius: '20px', fontSize: '12px', fontWeight: '700', color: '#888' }}>{orderMode === 'TAKEAWAY' ? 'Picked up' : 'Served'}</button>
+                  <button style={{ flex: 1, padding: '10px 0', background: '#eee', border: 'none', borderRadius: '20px', fontSize: '12px', fontWeight: '700', color: '#888' }}>{orderMode === 'TAKEAWAY' ? 'Picked up' : orderMode === 'DELIVERY' ? 'Dispatched' : 'Served'}</button>
                 )}
               </div>
             </div>
@@ -442,7 +466,7 @@ const OrdersManagement = () => {
                       marginBottom: '16px'
                     }}>
                       <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '500' }}>
-                        {(!order.table_number || order.table_number === 'N/A' || order.table_number.toString().toLowerCase() === 'takeaway') ? (order.order_type || 'Takeaway') : `Table ${order.table_number}`}
+                        {isDelivery(order) ? 'Delivery' : isTakeaway(order) ? 'Takeaway' : `Table ${order.table_number}`}
                       </span>
                       <span style={{ fontSize: '14px', fontWeight: '800', color: 'var(--text-dark)' }}>₹ {order.total_amount}</span>
                     </div>
@@ -467,11 +491,11 @@ const OrdersManagement = () => {
                           </button>
                         ) : order.status === 'READY' ? (
                           <button onClick={() => updateOrderStatus(order.order_id, 'SERVED')} style={{ flex: 1, padding: '8px 0', borderRadius: '24px', border: 'none', background: '#ff6b35', fontSize: '11px', fontWeight: '600', color: '#fff', cursor: 'pointer' }}>
-                            {orderMode === 'TAKEAWAY' ? 'Mark Picked up' : 'Mark Served'}
+                            {orderMode === 'TAKEAWAY' ? 'Mark Picked up' : orderMode === 'DELIVERY' ? 'Mark Dispatched' : 'Mark Served'}
                           </button>
                         ) : (
                           <button style={{ flex: 1, padding: '8px 0', borderRadius: '24px', border: 'none', background: '#e0e0e0', fontSize: '11px', fontWeight: '600', color: '#666', cursor: 'not-allowed' }}>
-                            {orderMode === 'TAKEAWAY' ? 'Picked up' : 'Completed'}
+                            {orderMode === 'TAKEAWAY' ? 'Picked up' : orderMode === 'DELIVERY' ? 'Dispatched' : 'Completed'}
                           </button>
                         )}
                       </div>
@@ -523,11 +547,11 @@ const OrdersManagement = () => {
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px', fontWeight: '600' }}>
               <span>Table</span>
-              <span>{(!selectedKOTOrder.table_number || selectedKOTOrder.table_number === 'N/A' || selectedKOTOrder.table_number.toString().toLowerCase() === 'takeaway') ? 'Takeaway' : `T${selectedKOTOrder.table_number.toString().padStart(2, '0')}`}</span>
+              <span>{isDelivery(selectedKOTOrder) ? 'Delivery' : isTakeaway(selectedKOTOrder) ? 'Takeaway' : `T${selectedKOTOrder.table_number.toString().padStart(2, '0')}`}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px', fontSize: '13px', fontWeight: '600' }}>
               <span>Type</span>
-              <span>{(!selectedKOTOrder.table_number || selectedKOTOrder.table_number === 'N/A' || selectedKOTOrder.table_number.toString().toLowerCase() === 'takeaway') ? 'Takeaway' : 'Dine-In'}</span>
+              <span>{isDelivery(selectedKOTOrder) ? 'Delivery' : isTakeaway(selectedKOTOrder) ? 'Takeaway' : 'Dine-In'}</span>
             </div>
 
             <div style={{ borderTop: '1px dashed #aaa', margin: '12px 0' }}></div>
