@@ -113,7 +113,8 @@ function CashierDashboard() {
     const totalAmt = cart.reduce((sum, item) => sum + item.amount, 0);
 
     const payload = {
-      table_number: orderType === 'take-away' ? 'takeaway' : '1', // Default to 1 for dine-in if not provided
+      table_number: orderType === 'take-away' ? 'takeaway' : orderType === 'delivery' ? 'N/A' : '1', // Default to 1 for dine-in if not provided
+      order_type: orderType === 'take-away' ? 'Takeaway' : orderType === 'delivery' ? 'Delivery' : 'Dine-in',
       payment_method: paymentMethod,
       cart: cart.map(c => ({ id: c.id, quantity: c.qty, price: c.rate })),
       subtotal: totalAmt,
@@ -196,7 +197,7 @@ function CashierDashboard() {
             <span>${currentDate}</span>
           </div>
           <div>
-            <span class="bold">Mode: </span>${orderType === 'take-away' ? 'Take Away' : 'Dine In'} | 
+            <span class="bold">Mode: </span>${orderType === 'take-away' ? 'Take Away' : orderType === 'delivery' ? 'Delivery' : 'Dine In'} | 
             <span class="bold">Pay: </span>${paymentMethod || 'Cash'}
           </div>
           ${futureSale.name ? `<div>Future Sale: ${futureSale.name}</div>` : ''}
@@ -248,13 +249,16 @@ function CashierDashboard() {
       const isInputFocused = e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA';
       const isProductCodeInput = e.target.id === 'product-code-input';
 
-      // Order Type Shortcuts (Alt+7 / Alt+4)
+      // Order Type Shortcuts (Alt+7 / Alt+4 / Alt+8)
       if (e.key === '7' && e.altKey) {
         e.preventDefault();
         setOrderType('take-away');
       } else if (e.key === '4' && e.altKey) {
         e.preventDefault();
         setOrderType('dine-in');
+      } else if (e.key === '8' && e.altKey) {
+        e.preventDefault();
+        setOrderType('delivery');
       }
 
       // Submit bill on Space (even in product code or empty search) or Enter (if no input focused)
@@ -506,6 +510,7 @@ function CashierDashboard() {
             >
               <option value="take-away">[7] Take Away</option>
               <option value="dine-in">[4] Dine In</option>
+              <option value="delivery">[8] Delivery</option>
             </select>
           </div>
 
