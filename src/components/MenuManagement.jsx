@@ -17,12 +17,13 @@ const MenuManagement = () => {
   const [editingItem, setEditingItem] = useState(null);
   const [newItem, setNewItem] = useState({
     item_code: '',
+    ac_type: 'Both',
     name: '',
     category_id: '',
     price: '',
     description: '',
     quantity: '0',
-    image_url: '',
+    image_url: ''
   });
   const [submitting, setSubmitting] = useState(false);
   const [generatingImageId, setGeneratingImageId] = useState(null);
@@ -136,6 +137,7 @@ const MenuManagement = () => {
       if (editingItem) {
         const updatedItem = await menuService.updateItem(editingItem.id, {
           item_code: newItem.item_code || null,
+          ac_type: newItem.ac_type || 'Both',
           name: newItem.name,
           category_id: parseInt(newItem.category_id),
           price: parseFloat(newItem.price),
@@ -147,6 +149,7 @@ const MenuManagement = () => {
       } else {
         const createdItem = await menuService.createItem({
           item_code: newItem.item_code || null,
+          ac_type: newItem.ac_type || 'Both',
           name: newItem.name,
           category_id: parseInt(newItem.category_id),
           price: parseFloat(newItem.price),
@@ -181,6 +184,7 @@ const MenuManagement = () => {
     setEditingItem(item);
     setNewItem({
       item_code: item.item_code || '',
+      ac_type: item.ac_type || 'Both',
       name: item.name,
       category_id: item.category_id,
       price: item.price,
@@ -194,7 +198,7 @@ const MenuManagement = () => {
   const closeModal = () => {
     setIsModalOpen(false);
     setEditingItem(null);
-    setNewItem({ item_code: '', name: '', category_id: '', price: '', description: '', quantity: '0', image_url: '' });
+    setNewItem({ item_code: '', ac_type: 'Both', name: '', category_id: '', price: '', description: '', quantity: '0', image_url: '' });
   };
 
   const filteredItems = items.filter(item => {
@@ -280,7 +284,7 @@ const MenuManagement = () => {
         <button
           onClick={() => {
             setEditingItem(null);
-            setNewItem({ name: '', category_id: '', price: '', description: '', quantity: '0', image_url: '' });
+            setNewItem({ name: '', ac_type: 'Both', category_id: '', price: '', description: '', quantity: '0', image_url: '' });
             setIsModalOpen(true);
           }}
           style={{
@@ -489,9 +493,18 @@ const MenuManagement = () => {
 
               {/* Content Area */}
               <div className="menu-card-content" style={{ padding: '16px', display: 'flex', flexDirection: 'column', flex: 1 }}>
-                {item.item_code && (
-                  <div style={{ display: 'inline-block', background: '#F3F4F6', color: '#4B5563', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold', marginBottom: '6px', alignSelf: 'flex-start' }}>
-                    ID: {item.item_code}
+                {(item.item_code || item.ac_type) && (
+                  <div style={{ display: 'flex', gap: '6px', alignSelf: 'flex-start', marginBottom: '6px' }}>
+                    {item.item_code && (
+                      <div style={{ display: 'inline-block', background: '#F3F4F6', color: '#4B5563', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold' }}>
+                        ID: {item.item_code}
+                      </div>
+                    )}
+                    {item.ac_type && item.ac_type !== 'Both' && (
+                      <div style={{ display: 'inline-block', background: item.ac_type === 'A/C' ? '#DBEAFE' : '#FEF3C7', color: item.ac_type === 'A/C' ? '#1E40AF' : '#92400E', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold' }}>
+                        {item.ac_type}
+                      </div>
+                    )}
                   </div>
                 )}
                 <h3 className="menu-card-title" style={{ fontSize: '18px', fontWeight: '800', color: '#111', margin: '0 0 8px 0', lineHeight: '1.2' }}>{item.name}</h3>
@@ -630,6 +643,32 @@ const MenuManagement = () => {
                       boxSizing: 'border-box'
                     }}
                   />
+                </div>
+                
+                {/* A/C Type */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>
+                    Section Type
+                  </label>
+                  <select
+                    value={newItem.ac_type}
+                    onChange={(e) => setNewItem({...newItem, ac_type: e.target.value})}
+                    style={{
+                      width: '100%',
+                      padding: '12px 16px',
+                      borderRadius: '12px',
+                      border: '1px solid #E5E7EB',
+                      fontSize: '15px',
+                      outline: 'none',
+                      background: 'white',
+                      boxSizing: 'border-box',
+                      appearance: 'none',
+                    }}
+                  >
+                    <option value="Both">Both (A/C & Non A/C)</option>
+                    <option value="A/C">A/C Only</option>
+                    <option value="Non A/C">Non A/C Only</option>
+                  </select>
                 </div>
                 
                 {/* Category */}
