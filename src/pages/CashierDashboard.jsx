@@ -344,7 +344,7 @@ function CashierDashboard() {
       if (existing) {
         return prevCart.map(c =>
           c.id === item.id
-            ? { ...c, qty: c.qty + 1, amount: (c.qty + 1) * c.rate }
+            ? { ...c, qty: (parseFloat(c.qty) || 0) + 1, amount: ((parseFloat(c.qty) || 0) + 1) * c.rate }
             : c
         );
       } else {
@@ -709,7 +709,7 @@ function CashierDashboard() {
                         />
                         <button onClick={() => {
                           setCart(prev => prev.map(c =>
-                            c.id === item.id ? { ...c, qty: c.qty + 1, amount: (c.qty + 1) * c.rate } : c
+                            c.id === item.id ? { ...c, qty: (parseFloat(c.qty) || 0) + 1, amount: ((parseFloat(c.qty) || 0) + 1) * c.rate } : c
                           ));
                         }}>+</button>
                       </div>
