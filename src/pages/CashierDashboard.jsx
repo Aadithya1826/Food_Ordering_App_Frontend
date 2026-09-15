@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import InvoiceModal from '../components/cashier/InvoiceModal';
 import FutureSaleModal from '../components/cashier/FutureSaleModal';
+import OrderHistoryModal from '../components/cashier/OrderHistoryModal';
+
 
 import { useAuth } from '../context/AuthContext';
 import { menuService } from '../services/api';
@@ -29,6 +31,8 @@ function CashierDashboard() {
   const [lastBillAmt, setLastBillAmt] = useState(0);
   const [showInvoice, setShowInvoice] = useState(false);
   const [showFutureSaleModal, setShowFutureSaleModal] = useState(false);
+  const [showOrderHistory, setShowOrderHistory] = useState(false);
+
   const [selectedItemIndex, setSelectedItemIndex] = useState(null);
 
   // Payment Flow State
@@ -45,6 +49,187 @@ function CashierDashboard() {
   const searchInputRef = useRef(null);
   const itemRefs = useRef([]);
   const cartInputRefs = useRef([]);
+
+
+  const handlePrintReport = async (type, startDate, endDate) => {
+    try {
+      let data;
+      let params = `restaurant_id=${user?.restaurant_id || ''}`;
+      if (startDate && endDate) {
+          params += `&start_date=${startDate}&end_date=${endDate}`;
+      }
+      if (type === 'hourly') {
+        const res = await api.get(`/api/v1/reports/hourly?${params}`);
+        data = res.data;
+      } else {
+        const res = await api.get(`/api/v1/reports/items?${params}`);
+        data = res.data;
+      }
+
+      let tableRows = '';
+      if (type === 'hourly') {
+        tableRows = (data.timeline || []).filter(t => Math.round(t.sales) > 0).map(t => `
+          <div class="row">
+            <span>${t.time}</span>
+            <span>${Math.round(t.sales)}</span>
+          </div>
+        `).join('');
+      } else {
+        tableRows = (data.items || []).map(item => `
+          <div class="item-row">
+            <span class="item-name">${item.name}</span>
+            <span class="item-qty">${item.qty.toFixed(2)}</span>
+            <span class="item-amt">${item.amount.toFixed(2)}</span>
+          </div>
+        `).join('');
+      }
+
+      const itemHeader = type === 'hourly' ? '' : `
+        <div class="item-row" style="border-bottom: 1px dashed #000; border-top: 1px dashed #000; padding: 5px 0; margin-bottom: 5px; font-weight: bold;">
+          <span class="item-name">Item Name</span>
+          <span class="item-qty">Qty</span>
+          <span class="item-amt">Amount</span>
+        </div>
+      `;
+
+      const printContent = `
+        <html>
+          <head>
+            <title>Print Receipt</title>
+            <style>
+              @page { margin: 0; }
+              body { font-family: monospace; font-size: 12px; margin: 0 auto; padding: 5px; width: 95%; max-width: 70mm; box-sizing: border-box; color: #000; }
+              .header { text-align: center; margin-bottom: 10px; }
+              .header h1 { font-size: 16px; margin: 0 0 5px 0; text-transform: uppercase; }
+              .header p { margin: 0 0 4px 0; text-transform: uppercase; }
+              .row { display: flex; justify-content: space-between; margin-bottom: 4px; }
+              .item-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
+              .item-name { flex: 2; word-break: break-word; padding-right: 5px; }
+              .item-qty { flex: 1; text-align: right; }
+              .item-amt { flex: 1; text-align: right; }
+              .total-row { border-top: 1px dashed #000; margin-top: 10px; padding-top: 10px; display: flex; justify-content: space-between; font-weight: bold; font-size: 14px; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1>${(data.restaurant && data.restaurant.name) || 'DATAUDIPI HOTEL'}</h1>
+              <p>${(data.restaurant && data.restaurant.address) || 'MUGALIVAKKAM, CHENNAI'}</p>
+              <p>PH:${(data.restaurant && data.restaurant.phone) || '9597066563'} GSTIN: ${(data.restaurant && data.restaurant.gstin) || '33ADLPV4810B3ZQ'}</p>
+              <h2 style="font-size: 14px; margin: 10px 0 5px 0;">${type === 'hourly' ? 'HOURLY REPORT' : 'ITEM WISE REPORT'}</h2>
+              <div style="text-align: left; margin-top: 10px;">
+                ${type === 'hourly' 
+                  ? `<p>Date: ${data.date}</p>` 
+                  : `<p>Print Date: ${data.date}</p><p>Bills From: ${data.date}</p><p>To: ${data.date}</p>`}
+                <p>Starting BillNo: ${(data.starting_bill && data.starting_bill.no) || '-'} - ${(data.starting_bill && data.starting_bill.time) || '-'}</p>
+                <p>Ending BillNo: ${(data.ending_bill && data.ending_bill.no) || '-'} - ${(data.ending_bill && data.ending_bill.time) || '-'}</p>
+              </div>
+            </div>
+            
+            ${itemHeader}
+            ${tableRows}
+            
+            <div class="total-row">
+              <span>TOTAL SALES</span>
+              <span>${data.total_sales ? data.total_sales.toFixed(2) : '0.00'}</span>
+            </div>
+          </body>
+        </html>
+      `;
+
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      document.body.appendChild(iframe);
+      iframe.contentWindow.document.open();
+      iframe.contentWindow.document.write(printContent);
+      iframe.contentWindow.document.close();
+      iframe.contentWindow.focus();
+      setTimeout(() => {
+        iframe.contentWindow.print();
+        document.body.removeChild(iframe);
+      }, 500);
+    } catch (e) {
+      alert("Failed to print report.");
+    }
+  };
+
+  const handlePrintItemCodes = () => {
+    if (!menuItems || menuItems.length === 0) {
+      alert("No items in menu to print");
+      return;
+    }
+
+    const currentDate = new Date().toLocaleString('en-US', {
+      month: 'numeric', day: 'numeric', year: 'numeric',
+      hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true
+    });
+
+    const resName = restaurantData?.name || 'DATA UDIPI HOTEL';
+    const resAddr = restaurantData?.address || 'M G R Nagar, Chennai';
+    const resPhone = resName.toLowerCase().includes('mugalivakkam') ? '+91 95970 66563' : (restaurantData?.phone || '31595014');
+
+    const itemRows = menuItems.map(item => `
+      <div class="row">
+        <div class="item-name">${item.name || 'Unknown'}</div>
+        <div class="item-code">${item.item_code || ''}</div>
+      </div>
+    `).join('');
+
+    const html = `
+      <html>
+        <head>
+          <style>
+            @page { margin: 0; }
+            body { font-family: monospace; font-size: 12px; margin: 0 auto; padding: 5px; width: 95%; max-width: 70mm; box-sizing: border-box; color: #000; }
+            .center { text-align: center; }
+            h1 { font-size: 16px; margin: 5px 0; }
+            h2 { font-size: 14px; margin: 10px 0 5px 0; }
+            .divider { border-bottom: 1px dashed #000; margin: 5px 0; }
+            .row { display: flex; justify-content: space-between; margin-bottom: 4px; }
+            .item-name { flex: 3; word-break: break-all; padding-right: 5px; text-transform: uppercase; }
+            .item-code { flex: 1; text-align: right; font-weight: bold; }
+            .bold { font-weight: bold; }
+            .footer { margin-top: 10px; font-size: 10px; }
+          </style>
+        </head>
+        <body>
+          <div class="center">
+            <h1>${resName}</h1>
+            <div style="font-size: 11px;">${resAddr.replace(/,/g, ',<br>')}</div>
+            <div style="font-size: 11px;">PH:${resPhone}</div>
+            <h2>MENU ITEM CODES</h2>
+          </div>
+          <div class="divider"></div>
+          <div class="row bold">
+            <span>PRINT DATE:</span>
+            <span>${currentDate.split(',')[0]}</span>
+          </div>
+          <div class="divider"></div>
+          <div class="row bold">
+            <div class="item-name">Item Name</div>
+            <div class="item-code">Code</div>
+          </div>
+          <div class="divider"></div>
+          ${itemRows}
+          <div class="divider"></div>
+          <div class="center footer">
+            Techwizard AI partners<br>hello@t-wi.com
+          </div>
+        </body>
+      </html>
+    `;
+
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
+    iframe.contentWindow.document.open();
+    iframe.contentWindow.document.write(html);
+    iframe.contentWindow.document.close();
+    iframe.contentWindow.focus();
+    setTimeout(() => {
+      iframe.contentWindow.print();
+      document.body.removeChild(iframe);
+    }, 500);
+  };
 
   const playBeep = () => {
     try {
@@ -502,7 +687,7 @@ function CashierDashboard() {
       <div className="main-layout">
         {/* LEFT PANEL - PRODUCTS */}
         <div className="products-panel">
-          <div className="order-type-selector" style={{ marginBottom: '12px' }}>
+<div className="order-type-selector" style={{ display: 'flex', gap: '12px', marginBottom: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
             <select
               value={orderType}
               onChange={(e) => setOrderType(e.target.value)}
@@ -512,6 +697,10 @@ function CashierDashboard() {
               <option value="dine-in">[4] Dine In</option>
               <option value="delivery">[8] Delivery</option>
             </select>
+            <button onClick={() => handlePrintReport('hourly')} style={{ padding: '8px 16px', background: '#f1f5f9', color: '#334155', border: '1px solid #e2e8f0', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Hourly Report</button>
+            <button onClick={() => handlePrintReport('items')} style={{ padding: '8px 16px', background: '#f1f5f9', color: '#334155', border: '1px solid #e2e8f0', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Item Report</button>
+            <button onClick={handlePrintItemCodes} style={{ padding: '8px 16px', background: '#f1f5f9', color: '#334155', border: '1px solid #e2e8f0', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Item Code</button>
+            <button onClick={() => setShowOrderHistory(true)} style={{ padding: '8px 16px', background: '#f1f5f9', color: '#334155', border: '1px solid #e2e8f0', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Orders</button>
           </div>
 
           <div className="form-group" style={{ flexDirection: 'row', gap: '12px' }}>
@@ -757,6 +946,27 @@ function CashierDashboard() {
         </div>
       </div>
 
+      <OrderHistoryModal 
+        show={showOrderHistory}
+        setShow={setShowOrderHistory}
+        api={api}
+        user={user}
+        onShowBill={(order) => {
+          // To show the bill, map to cart format and trigger print logic
+          // A simple print logic for reprinted bills:
+          const mappedCart = (order.items || []).map(item => ({
+            description: item.name,
+            qty: item.quantity,
+            amount: item.price
+          }));
+          setLastCart(mappedCart);
+          setLastBillAmt(order.total_amount);
+          setLastBillNo(order.order_id);
+          setLastOrderType(order.order_type);
+          setLastPaymentMethod(order.payment_method);
+          setShowInvoice(true);
+        }}
+      />
       <InvoiceModal
         show={showInvoice}
         lastBillNo={lastBillNo}
