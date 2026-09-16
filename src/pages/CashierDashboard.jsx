@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import InvoiceModal from '../components/cashier/InvoiceModal';
 import FutureSaleModal from '../components/cashier/FutureSaleModal';
 import OrderHistoryModal from '../components/cashier/OrderHistoryModal';
-
+import VoiceWidget from '../components/VoiceWidget';
 
 import { useAuth } from '../context/AuthContext';
 import { menuService } from '../services/api';
@@ -364,6 +364,46 @@ function CashierDashboard() {
     setLastFutureSale({ ...futureSale });
     setFutureSale({ name: '', address: '', city: '', phone: '', deliveryDate: '' });
   }, [cart, billNo, orderType, paymentMethod, futureSale, user]);
+
+  const handleVoiceCommand = (toolName, toolResult) => {
+    if (toolName === 'add_to_cart_cashier' && toolResult?.items) {
+      setCart(prevCart => {
+        let newCart = [...prevCart];
+        toolResult.items.forEach(voiceItem => {
+          const menuMatch = menuItems.find(m => 
+            m.name.toLowerCase() === voiceItem.name.toLowerCase() || 
+            m.name.toLowerCase().includes(voiceItem.name.toLowerCase())
+          );
+          if (menuMatch) {
+            const existing = newCart.find(c => c.id === menuMatch.id);
+            if (existing) {
+              existing.qty = parseFloat(existing.qty) + voiceItem.quantity;
+              existing.amount = existing.qty * existing.rate;
+            } else {
+              const price = parseFloat(menuMatch.price) || 0;
+              newCart.push({
+                id: menuMatch.id,
+                product_code: menuMatch.item_code || menuMatch.id,
+                description: menuMatch.name || menuMatch.description || 'Unknown Item',
+                rate: price,
+                qty: voiceItem.quantity,
+                amount: price * voiceItem.quantity,
+                pref: ''
+              });
+            }
+          } else {
+            toast.error(`Item "${voiceItem.name}" not found in menu.`);
+          }
+        });
+        return newCart;
+      });
+    } else if (toolName === 'print_cashier_bill') {
+      handleCheckout();
+    } else if (toolName === 'print_future_bill') {
+      setFutureSale({ name: 'Future Order', address: '', city: '', phone: '', deliveryDate: '' });
+      setShowFutureSaleModal(true);
+    }
+  };
 
   const handleCheckout = () => {
     submitBill();
@@ -1036,6 +1076,7 @@ function CashierDashboard() {
         futureSale={futureSale}
         setFutureSale={setFutureSale}
       />
+      <VoiceWidget onVoiceCommand={handleVoiceCommand} />
     </div>
   );
 }

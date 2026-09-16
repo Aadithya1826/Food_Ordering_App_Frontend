@@ -3,7 +3,7 @@ import { Mic, MicOff, X, Send, Maximize2, Minimize2, MessageSquare, Volume2, Vol
 import api from '../services/api';
 import ChefMascot from '../assets/chef.png';
 
-const VoiceWidget = ({ onNavigate }) => {
+const VoiceWidget = ({ onNavigate, onVoiceCommand }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [messages, setMessages] = useState(() => {
@@ -226,12 +226,15 @@ const VoiceWidget = ({ onNavigate }) => {
 
                 if (data.tool_name === 'navigate_to_page' && data.tool_result && onNavigate) {
                   onNavigate(data.tool_result.page, data.tool_result.subtab);
-                }
-                if (data.tool_name === 'trigger_logout') {
+                } else if (data.tool_name === 'trigger_logout') {
                   localStorage.removeItem('access_token');
                   localStorage.removeItem('user');
                   sessionStorage.removeItem('voice_chat_history');
                   window.location.href = '/';
+                }
+                
+                if (onVoiceCommand) {
+                  onVoiceCommand(data.tool_name, data.tool_result);
                 }
               } else if (data.type === "second_pass_start") {
                 currentLiveText = "";
