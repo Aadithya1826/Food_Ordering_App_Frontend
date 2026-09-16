@@ -47,6 +47,42 @@ function CashierDashboard() {
   const [restaurantData, setRestaurantData] = useState(null);
 
   const searchInputRef = useRef(null);
+
+  const [cartWidth, setCartWidth] = useState(400);
+  const isResizing = useRef(false);
+
+  const startResizing = useCallback(() => {
+    isResizing.current = true;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none'; // Prevent text selection
+  }, []);
+
+  const stopResizing = useCallback(() => {
+    if (isResizing.current) {
+      isResizing.current = false;
+      document.body.style.cursor = 'default';
+      document.body.style.userSelect = 'auto';
+    }
+  }, []);
+
+  const resize = useCallback((mouseMoveEvent) => {
+    if (isResizing.current) {
+      const newWidth = window.innerWidth - mouseMoveEvent.clientX;
+      if (newWidth > 300 && newWidth < window.innerWidth * 0.7) {
+        setCartWidth(newWidth);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener('mousemove', resize);
+    window.addEventListener('mouseup', stopResizing);
+    return () => {
+      window.removeEventListener('mousemove', resize);
+      window.removeEventListener('mouseup', stopResizing);
+    };
+  }, [resize, stopResizing]);
+
   const itemRefs = useRef([]);
   const cartInputRefs = useRef([]);
 
@@ -98,7 +134,7 @@ function CashierDashboard() {
             <title>Print Receipt</title>
             <style>
               @page { margin: 0; }
-              body { font-family: monospace; font-size: 12px; margin: 0 auto; padding: 5px; width: 95%; max-width: 70mm; box-sizing: border-box; color: #000; }
+              body { font-family: monospace; font-size: 12px; margin: 0; padding: 0 5px 0 25px; width: 100%; max-width: 75mm; box-sizing: border-box; color: #000; }
               .header { text-align: center; margin-bottom: 10px; }
               .header h1 { font-size: 16px; margin: 0 0 5px 0; text-transform: uppercase; }
               .header p { margin: 0 0 4px 0; text-transform: uppercase; }
@@ -179,7 +215,7 @@ function CashierDashboard() {
         <head>
           <style>
             @page { margin: 0; }
-            body { font-family: monospace; font-size: 12px; margin: 0 auto; padding: 5px; width: 95%; max-width: 70mm; box-sizing: border-box; color: #000; }
+            body { font-family: monospace; font-size: 12px; margin: 0; padding: 0 5px 0 25px; width: 100%; max-width: 75mm; box-sizing: border-box; color: #000; }
             .center { text-align: center; }
             h1 { font-size: 16px; margin: 5px 0; }
             h2 { font-size: 14px; margin: 10px 0 5px 0; }
@@ -811,8 +847,24 @@ function CashierDashboard() {
           </div>
         </div>
 
+
+        {/* RESIZER */}
+        <div
+          onMouseDown={startResizing}
+          style={{
+            width: '6px',
+            cursor: 'col-resize',
+            backgroundColor: '#e5e7eb',
+            zIndex: 10,
+            display: window.innerWidth > 768 ? 'block' : 'none'
+          }}
+          onMouseEnter={(e) => e.target.style.backgroundColor = '#d1d5db'}
+          onMouseLeave={(e) => e.target.style.backgroundColor = '#e5e7eb'}
+        />
+
         {/* RIGHT PANEL - CART / PAYMENT */}
-        <div className="cart-panel">
+        <div className="cart-panel" style={{ width: window.innerWidth > 768 ? `${cartWidth}px` : '100%' }}>
+
           {rightPanelState === 'CART' && (
             <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
               <div className="cart-header" style={{ flexShrink: 0 }}>
