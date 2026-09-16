@@ -4,6 +4,11 @@ import api from '../services/api';
 import ChefMascot from '../assets/chef.png';
 
 const VoiceWidget = ({ onNavigate, onVoiceCommand }) => {
+  const propsRef = useRef({ onNavigate, onVoiceCommand });
+  useEffect(() => {
+    propsRef.current = { onNavigate, onVoiceCommand };
+  }, [onNavigate, onVoiceCommand]);
+
   const [isExpanded, setIsExpanded] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [messages, setMessages] = useState(() => {
@@ -224,8 +229,8 @@ const VoiceWidget = ({ onNavigate, onVoiceCommand }) => {
               } else if (data.type === "tool_call") {
                 setMessages((prev) => prev.map(m => m.id === assistantMsgId ? { ...m, tool_name: data.tool_name, tool_result: data.tool_result } : m));
 
-                if (data.tool_name === 'navigate_to_page' && data.tool_result && onNavigate) {
-                  onNavigate(data.tool_result.page, data.tool_result.subtab);
+                if (data.tool_name === 'navigate_to_page' && data.tool_result && propsRef.current.onNavigate) {
+                  propsRef.current.onNavigate(data.tool_result.page, data.tool_result.subtab);
                 } else if (data.tool_name === 'trigger_logout') {
                   localStorage.removeItem('access_token');
                   localStorage.removeItem('user');
@@ -233,8 +238,8 @@ const VoiceWidget = ({ onNavigate, onVoiceCommand }) => {
                   window.location.href = '/';
                 }
                 
-                if (onVoiceCommand) {
-                  onVoiceCommand(data.tool_name, data.tool_result);
+                if (propsRef.current.onVoiceCommand) {
+                  propsRef.current.onVoiceCommand(data.tool_name, data.tool_result);
                 }
               } else if (data.type === "second_pass_start") {
                 currentLiveText = "";
