@@ -134,7 +134,7 @@ function CashierDashboard() {
             <title>Print Receipt</title>
             <style>
               @page { margin: 0; }
-              body { font-family: monospace; font-size: 12px; margin: 0; padding: 0 5px 0 25px; width: 100%; max-width: 75mm; box-sizing: border-box; color: #000; }
+              body { font-family: monospace; font-size: 12px; margin: 0; padding: 0 5px 0 10px; width: 100%; max-width: 68mm; box-sizing: border-box; color: #000; }
               .header { text-align: center; margin-bottom: 10px; }
               .header h1 { font-size: 16px; margin: 0 0 5px 0; text-transform: uppercase; }
               .header p { margin: 0 0 4px 0; text-transform: uppercase; }
@@ -215,7 +215,7 @@ function CashierDashboard() {
         <head>
           <style>
             @page { margin: 0; }
-            body { font-family: monospace; font-size: 12px; margin: 0; padding: 0 5px 0 25px; width: 100%; max-width: 75mm; box-sizing: border-box; color: #000; }
+            body { font-family: monospace; font-size: 12px; margin: 0; padding: 0 5px 0 10px; width: 100%; max-width: 68mm; box-sizing: border-box; color: #000; }
             .center { text-align: center; }
             h1 { font-size: 16px; margin: 5px 0; }
             h2 { font-size: 14px; margin: 10px 0 5px 0; }
