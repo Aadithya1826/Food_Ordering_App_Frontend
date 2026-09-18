@@ -16,6 +16,31 @@ const FutureSaleModal = ({ show, setShow, futureSale, setFutureSale }) => {
           <input type="text" placeholder="City" value={futureSale.city} onChange={(e) => setFutureSale({...futureSale, city: e.target.value})} style={{ padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '14px' }} />
           <input type="text" placeholder="Phone Number" value={futureSale.phone} onChange={(e) => setFutureSale({...futureSale, phone: e.target.value})} style={{ padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '14px' }} />
           <input type="date" placeholder="Delivery Date" value={futureSale.deliveryDate} onChange={(e) => setFutureSale({...futureSale, deliveryDate: e.target.value})} style={{ padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '14px', fontFamily: 'inherit' }} />
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <input 
+              type="text" 
+              placeholder="HH:MM" 
+              value={futureSale.deliveryTime ? futureSale.deliveryTime.split(' ')[0] : ''} 
+              onChange={(e) => {
+                const val = e.target.value;
+                const ampm = (futureSale.deliveryTime && futureSale.deliveryTime.split(' ')[1]) || 'AM';
+                setFutureSale({...futureSale, deliveryTime: val ? `${val} ${ampm}` : ''});
+              }} 
+              style={{ padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '14px', flex: 1 }} 
+            />
+            <select 
+              value={(futureSale.deliveryTime && futureSale.deliveryTime.split(' ')[1]) || 'AM'}
+              onChange={(e) => {
+                const ampm = e.target.value;
+                const val = futureSale.deliveryTime ? futureSale.deliveryTime.split(' ')[0] : '12:00';
+                setFutureSale({...futureSale, deliveryTime: `${val} ${ampm}`});
+              }}
+              style={{ padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '14px', width: '80px', backgroundColor: 'white' }}
+            >
+              <option value="AM">AM</option>
+              <option value="PM">PM</option>
+            </select>
+          </div>
           <textarea placeholder="Notes" value={futureSale.notes || ''} onChange={(e) => setFutureSale({...futureSale, notes: e.target.value})} style={{ padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '14px', resize: 'vertical', minHeight: '80px', fontFamily: 'inherit' }}></textarea>
         </div>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '24px' }}>
