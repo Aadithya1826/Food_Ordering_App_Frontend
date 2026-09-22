@@ -341,7 +341,8 @@ function CashierDashboard() {
       subtotal: totalAmt,
       gst: 0,
       service_charge: 0,
-      total_amount: totalAmt
+      total_amount: totalAmt,
+      bill_no: billNo
     };
 
     api.post(`/api/v1/orders?restaurant_id=${user?.restaurant_id}`, payload)

@@ -51,8 +51,8 @@ const OrderHistoryModal = ({ show, setShow, api, user, onShowBill }) => {
         </div>
 
         <div style={{ display: 'flex', backgroundColor: '#f3f4f6', padding: '12px', borderRadius: '8px', fontWeight: 'bold', color: '#4b5563', fontSize: '14px', marginBottom: '8px' }}>
-          <div style={{ flex: 1 }}>Bill No</div>
-          <div style={{ flex: 2 }}>Time</div>
+          <div style={{ flex: 1.5 }}>Order / Bill</div>
+          <div style={{ flex: 1.5 }}>Time</div>
           <div style={{ flex: 1 }}>Total (₹)</div>
           <div style={{ width: '80px', textAlign: 'center' }}>Action</div>
         </div>
@@ -73,8 +73,8 @@ const OrderHistoryModal = ({ show, setShow, api, user, onShowBill }) => {
                     onClick={() => setExpandedOrderId(isExpanded ? null : order.order_id)}
                     style={{ display: 'flex', padding: '12px', alignItems: 'center', cursor: 'pointer', backgroundColor: 'white' }}
                   >
-                    <div style={{ flex: 1, fontWeight: 'bold' }}>#{order.order_id}</div>
-                    <div style={{ flex: 2 }}>{orderTime}</div>
+                    <div style={{ flex: 1.5, fontWeight: 'bold' }}>#{order.branch_order_id || order.order_id} {order.bill_no ? `(B:${order.bill_no})` : ''}</div>
+                    <div style={{ flex: 1.5 }}>{orderTime}</div>
                     <div style={{ flex: 1, color: '#16a34a', fontWeight: 'bold' }}>₹{order.total_amount?.toFixed(2)}</div>
                     <button 
                       onClick={(e) => { e.stopPropagation(); if (onShowBill) onShowBill(order); }}
