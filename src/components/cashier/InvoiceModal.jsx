@@ -38,14 +38,14 @@ const InvoiceModal = ({ show, lastBillNo, lastOrderType, lastPaymentMethod, last
         <hr style={{ borderTop: '1px dashed black', marginBottom: '12px' }} />
 
         <table style={{ width: '100%', fontSize: '13px', marginBottom: '12px' }}>
-          <thead>
+          <thead style={{ transform: 'scaleY(1.2)', transformOrigin: 'top' }}>
             <tr>
               <th style={{ textAlign: 'left', paddingBottom: '8px' }}>Item</th>
               <th style={{ textAlign: 'right', paddingBottom: '8px' }}>Qty</th>
               <th style={{ textAlign: 'right', paddingBottom: '8px' }}>Amt</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody style={{ transform: 'scaleY(1.2)', transformOrigin: 'top' }}>
             {lastCart.length === 0 ? (
               <tr>
                 <td colSpan="3" style={{ textAlign: 'center', padding: '16px 0', color: '#6b7280', fontStyle: 'italic' }}>
@@ -55,21 +55,20 @@ const InvoiceModal = ({ show, lastBillNo, lastOrderType, lastPaymentMethod, last
             ) : (
               lastCart.map(item => (
                 <tr key={item.id}>
-                  <td style={{ paddingBottom: '4px' }}>
+                  <td style={{ paddingBottom: '8px' }}>
                     <div>{item.description}</div>
-                    <div style={{ fontSize: '11px', color: '#4b5563' }}>{item.product_code}</div>
                   </td>
-                  <td style={{ textAlign: 'right', paddingBottom: '4px' }}>{item.qty}</td>
-                  <td style={{ textAlign: 'right', paddingBottom: '4px' }}>₹{item.amount.toFixed(2)}</td>
+                  <td style={{ textAlign: 'right', paddingBottom: '8px' }}>{item.qty}</td>
+                  <td style={{ textAlign: 'right', paddingBottom: '8px' }}>₹{item.amount.toFixed(2)}</td>
                 </tr>
               ))
             )}
           </tbody>
         </table>
 
-        <hr style={{ borderTop: '1px dashed black', marginBottom: '12px' }} />
+        <hr style={{ borderTop: '1px dashed black', marginBottom: '12px', marginTop: '12px' }} />
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '15px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '15px', transform: 'scaleY(1.3)', transformOrigin: 'top', paddingBottom: '8px' }}>
           <span>TOTAL</span>
           <span>₹{lastBillAmt.toFixed(2)}</span>
         </div>
