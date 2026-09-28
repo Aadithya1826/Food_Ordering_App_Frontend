@@ -68,7 +68,7 @@ const InvoiceModal = ({ show, lastBillNo, lastOrderType, lastPaymentMethod, last
 
         <hr style={{ borderTop: '1px dashed black', marginBottom: '12px', marginTop: '12px' }} />
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '15px', transform: 'scaleY(1.3)', transformOrigin: 'top', paddingBottom: '8px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '15px', transform: 'scaleY(1.7)', transformOrigin: 'top', paddingTop: '10px', paddingBottom: '12px' }}>
           <span>TOTAL</span>
           <span>₹{lastBillAmt.toFixed(2)}</span>
         </div>
