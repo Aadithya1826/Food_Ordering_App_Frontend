@@ -20,8 +20,8 @@ const api = axios.create({
 export function rewriteImageUrl(url) {
   if (!url) return url;
   
-  // Remove any explicit localhost references
-  let cleanUrl = url.replace(/^https?:\/\/localhost(:\d+)?/, '');
+  // Remove any explicit localhost/127.0.0.1 references with any port
+  let cleanUrl = url.replace(/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/, '');
   
   // If the url is just a filename (no slashes, no http), assume it's in /static/images/
   if (!cleanUrl.includes('/') && !cleanUrl.startsWith('http')) {
@@ -357,6 +357,10 @@ export const reportsService = {
   },
   getConsumptionReport: async (date) => {
     const response = await api.get('/api/v1/reports/consumption', { params: { report_date: date } });
+    return response.data;
+  },
+  getMobileAppReport: async (params = {}) => {
+    const response = await api.get('/api/v1/reports/mobile-app', { params });
     return response.data;
   },
 };

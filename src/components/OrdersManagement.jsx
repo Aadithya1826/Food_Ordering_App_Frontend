@@ -72,6 +72,68 @@ const OrdersManagement = () => {
   const isDineIn = (order) => {
     return !isDelivery(order) && !isTakeaway(order);
   };
+
+  const getPaymentDisplayInfo = (order) => {
+    const method = (order?.payment_method || '').toLowerCase().trim();
+    const status = (order?.payment_status || '').toLowerCase().trim();
+
+    // Check if user selected Pay at the Counter / Cash
+    const isPayAtCounter = 
+      method.includes('cash') || 
+      method.includes('counter') || 
+      method.includes('cod') ||
+      method.includes('pay at counter');
+
+    // Check if payment is done through UPI / Online
+    const isUpi = 
+      method.includes('upi') || 
+      method.includes('razorpay') || 
+      method.includes('online') || 
+      method.includes('gpay') || 
+      method.includes('phonepe') || 
+      method.includes('card') || 
+      method.includes('wallet') ||
+      (!isPayAtCounter && status === 'paid');
+
+    if (isUpi) {
+      return {
+        type: 'UPI',
+        isUpi: true,
+        label: 'UPI Paid',
+        badgeText: 'UPI Paid',
+        themeColor: '#16a34a',
+        cardBg: '#f0fdf4',
+        cardBorder: '2px solid #22c55e',
+        borderLeft: '6px solid #16a34a',
+        boxShadow: '0 4px 14px rgba(34, 197, 94, 0.12)',
+        hoverBoxShadow: '0 12px 24px rgba(34, 197, 94, 0.22)',
+        badgeBg: '#dcfce7',
+        badgeColor: '#15803d',
+        badgeBorder: '1px solid #86efac',
+        orderIdColor: '#15803d',
+        amountColor: '#15803d',
+      };
+    }
+
+    // Default to Pay at Counter (Red)
+    return {
+      type: 'COUNTER',
+      isUpi: false,
+      label: 'Pay at Counter',
+      badgeText: 'Pay at Counter',
+      themeColor: '#dc2626',
+      cardBg: '#fef2f2',
+      cardBorder: '2px solid #ef4444',
+      borderLeft: '6px solid #dc2626',
+      boxShadow: '0 4px 14px rgba(239, 68, 68, 0.12)',
+      hoverBoxShadow: '0 12px 24px rgba(239, 68, 68, 0.22)',
+      badgeBg: '#fee2e2',
+      badgeColor: '#b91c1c',
+      badgeBorder: '1px solid #fca5a5',
+      orderIdColor: '#b91c1c',
+      amountColor: '#b91c1c',
+    };
+  };
   useEffect(() => {
     fetchOrders();
     const interval = setInterval(fetchOrders, 10000); // Polling every 10s
@@ -201,20 +263,44 @@ const OrdersManagement = () => {
           <h2 style={{ fontSize: '28px', fontWeight: '700', marginBottom: '8px', color: 'var(--text-dark)' }}>Live Orders (KDS)</h2>
           <p style={{ color: 'var(--text-secondary)', fontSize: '15px' }}>Kitchen Display System — Real-time order tracking</p>
         </div>
-        <div style={{ 
-          background: 'var(--surface)', 
-          border: '1px solid rgba(0,0,0,0.08)',
-          padding: '8px 16px', 
-          borderRadius: '24px', 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: '8px',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
-        }}>
-          <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#2d7a4a' }}></div>
-          <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-dark)' }}>
-            {filteredOrders.filter(o => o.status !== 'SERVED').length} Active Orders
-          </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            background: 'var(--surface)',
+            border: '1px solid rgba(0,0,0,0.08)',
+            padding: '6px 14px',
+            borderRadius: '20px',
+            fontSize: '12px',
+            fontWeight: '600'
+          }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#15803d' }}>
+              <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#22c55e' }} />
+              UPI Paid (Green)
+            </span>
+            <span style={{ color: 'rgba(0,0,0,0.2)' }}>|</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#b91c1c' }}>
+              <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#ef4444' }} />
+              Pay at Counter (Red)
+            </span>
+          </div>
+
+          <div style={{ 
+            background: 'var(--surface)', 
+            border: '1px solid rgba(0,0,0,0.08)',
+            padding: '8px 16px', 
+            borderRadius: '24px', 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '8px',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+          }}>
+            <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#2d7a4a' }}></div>
+            <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-dark)' }}>
+              {filteredOrders.filter(o => o.status !== 'SERVED').length} Active Orders
+            </span>
+          </div>
         </div>
       </div>
 
@@ -323,20 +409,49 @@ const OrdersManagement = () => {
           {filteredOrders.filter(o => {
             if (activeMobileTab === 'PENDING') return o.status === 'PENDING' || o.status === 'CONFIRMED';
             return o.status === activeMobileTab;
-          }).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).map(order => (
-            <div key={order.order_id} style={{ background: 'white', borderRadius: '12px', padding: '12px', border: '1px solid #eee', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                <span style={{ color: '#ff6b35', fontWeight: '800', fontSize: '13px' }}>#{order.order_id}</span>
+          }).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).map(order => {
+            const paymentInfo = getPaymentDisplayInfo(order);
+            return (
+            <div key={order.order_id} style={{ 
+              background: paymentInfo.cardBg, 
+              borderRadius: '12px', 
+              padding: '12px', 
+              border: paymentInfo.cardBorder, 
+              borderLeft: paymentInfo.borderLeft,
+              boxShadow: paymentInfo.boxShadow,
+              display: 'flex', 
+              flexDirection: 'column', 
+              minWidth: 0 
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <span style={{ color: paymentInfo.orderIdColor, fontWeight: '800', fontSize: '13px' }}>#{order.order_id}</span>
                 <span style={{ background: '#f5f5f5', color: '#888', padding: '4px 8px', borderRadius: '8px', fontSize: '10px', fontWeight: '700' }}>{timeAgo(order.created_at)}</span>
+              </div>
+              <div style={{ marginBottom: '8px' }}>
+                <span style={{
+                  fontSize: '10px',
+                  fontWeight: '700',
+                  padding: '2px 6px',
+                  borderRadius: '10px',
+                  background: paymentInfo.badgeBg,
+                  color: paymentInfo.badgeColor,
+                  border: paymentInfo.badgeBorder,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}>
+                  <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: paymentInfo.themeColor }} />
+                  {paymentInfo.badgeText}
+                </span>
               </div>
               <div style={{ fontSize: '12px', fontWeight: '600', color: '#111', marginBottom: '12px', lineHeight: '1.5', flex: 1 }}>
                 {order.items?.map(i => `${i.name} x${i.quantity}`).join(', ')}
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', borderBottom: '1px solid #f5f5f5', paddingBottom: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', borderBottom: `1px dashed ${paymentInfo.badgeBorder}`, paddingBottom: '12px' }}>
                 <span style={{ fontSize: '11px', color: '#888', fontWeight: '500' }}>
                   {isDelivery(order) ? 'Delivery' : isTakeaway(order) ? 'Takeaway' : `Table ${order.table_number}`}
                 </span>
-                <span style={{ fontSize: '14px', fontWeight: '800', color: '#111' }}>₹ {order.total_amount}</span>
+                <span style={{ fontSize: '14px', fontWeight: '800', color: paymentInfo.amountColor }}>₹ {order.total_amount}</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
                 <button onClick={() => setSelectedKOTOrder(order)} style={{ flex: 1, padding: '10px 0', background: '#f5f5f5', border: 'none', borderRadius: '20px', fontSize: '12px', fontWeight: '700', color: '#888', cursor: 'pointer' }}>Details</button>
@@ -351,7 +466,7 @@ const OrdersManagement = () => {
                 )}
               </div>
             </div>
-          ))}
+          ); })}
         </div>
       </div>
 
@@ -411,35 +526,55 @@ const OrdersManagement = () => {
                 gap: '16px',
                 minHeight: '150px'
               }}>
-                {columnOrders.map(order => (
+                {columnOrders.map(order => {
+                  const paymentInfo = getPaymentDisplayInfo(order);
+                  return (
                   <div 
                     key={order.order_id} 
                     draggable
                     onDragStart={(e) => handleDragStart(e, order.order_id)}
                     style={{
-                      background: 'var(--surface)',
-                      border: '1px solid rgba(0,0,0,0.06)',
+                      background: paymentInfo.cardBg,
+                      border: paymentInfo.cardBorder,
+                      borderLeft: paymentInfo.borderLeft,
                       borderRadius: '16px',
                       padding: '20px',
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.02)',
+                      boxShadow: paymentInfo.boxShadow,
                       cursor: 'grab',
                       transition: 'all 0.2s ease',
                       position: 'relative',
                     }}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.transform = 'translateY(-4px)';
-                      e.currentTarget.style.boxShadow = '0 12px 24px rgba(0,0,0,0.06)';
+                      e.currentTarget.style.boxShadow = paymentInfo.hoverBoxShadow;
                     }}
                     onMouseLeave={(e) => {
                       e.currentTarget.style.transform = 'translateY(0)';
-                      e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.02)';
+                      e.currentTarget.style.boxShadow = paymentInfo.boxShadow;
                     }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                      <span style={{ fontWeight: '700', fontSize: '14px', color: column.iconBg }}>#{order.order_id}</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontWeight: '800', fontSize: '15px', color: paymentInfo.orderIdColor }}>#{order.order_id}</span>
+                        <span style={{
+                          fontSize: '11px',
+                          fontWeight: '700',
+                          padding: '2px 8px',
+                          borderRadius: '12px',
+                          background: paymentInfo.badgeBg,
+                          color: paymentInfo.badgeColor,
+                          border: paymentInfo.badgeBorder,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '5px'
+                        }}>
+                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: paymentInfo.themeColor }} />
+                          {paymentInfo.badgeText}
+                        </span>
+                      </div>
                       <span style={{ 
                         fontSize: '11px', 
-                        background: '#f4f4f6', 
+                        background: 'rgba(0,0,0,0.05)', 
                         padding: '4px 10px', 
                         borderRadius: '16px',
                         color: 'var(--text-secondary)',
@@ -453,7 +588,7 @@ const OrdersManagement = () => {
                       fontSize: '13px', 
                       color: 'var(--text-dark)', 
                       fontWeight: '600', 
-                      marginBottom: '20px', 
+                      marginBottom: '16px', 
                       lineHeight: '1.6' 
                     }}>
                       {order.items?.map(i => `${i.name} x${i.quantity}`).join(', ')}
@@ -463,12 +598,14 @@ const OrdersManagement = () => {
                       display: 'flex', 
                       justifyContent: 'space-between', 
                       alignItems: 'center',
-                      marginBottom: '16px'
+                      marginBottom: '16px',
+                      paddingTop: '8px',
+                      borderTop: `1px dashed ${paymentInfo.badgeBorder}`
                     }}>
-                      <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '500' }}>
+                      <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '600' }}>
                         {isDelivery(order) ? 'Delivery' : isTakeaway(order) ? 'Takeaway' : `Table ${order.table_number}`}
                       </span>
-                      <span style={{ fontSize: '14px', fontWeight: '800', color: 'var(--text-dark)' }}>₹ {order.total_amount}</span>
+                      <span style={{ fontSize: '15px', fontWeight: '800', color: paymentInfo.amountColor }}>₹ {order.total_amount}</span>
                     </div>
 
                     <div style={{
@@ -518,7 +655,7 @@ const OrdersManagement = () => {
                       )}
                     </div>
                   </div>
-                ))}
+                ); })}
               </div>
             </div>
           );
@@ -552,6 +689,19 @@ const OrdersManagement = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px', fontSize: '13px', fontWeight: '600' }}>
               <span>Type</span>
               <span>{isDelivery(selectedKOTOrder) ? 'Delivery' : isTakeaway(selectedKOTOrder) ? 'Takeaway' : 'Dine-In'}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px', fontSize: '13px', fontWeight: '600' }}>
+              <span>Payment</span>
+              <span style={{ 
+                color: getPaymentDisplayInfo(selectedKOTOrder).themeColor, 
+                fontWeight: 'bold',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px'
+              }}>
+                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: getPaymentDisplayInfo(selectedKOTOrder).themeColor }} />
+                {getPaymentDisplayInfo(selectedKOTOrder).badgeText}
+              </span>
             </div>
 
             <div style={{ borderTop: '1px dashed #aaa', margin: '12px 0' }}></div>

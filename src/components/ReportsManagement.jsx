@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import MobileAppSalesReport from './MobileAppSalesReport';
 import {
   TrendingUp,
   CreditCard,
@@ -8,7 +9,8 @@ import {
   IndianRupee,
   ArrowUpRight,
   ArrowDownRight,
-  Printer
+  Printer,
+  Smartphone
 } from 'lucide-react';
 import { reportsService } from '../services/api';
 import ReportView from './ReportView';
@@ -26,6 +28,7 @@ const ReportsManagement = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [reportPrintType, setReportPrintType] = useState(null);
+  const [showMobileReport, setShowMobileReport] = useState(false);
 
   useEffect(() => {
     const fetchReports = async () => {
@@ -98,6 +101,14 @@ const ReportsManagement = () => {
       positive: summary.avg_order_value.change.startsWith('+')
     }
   ];
+
+  if (showMobileReport) {
+    return (
+      <div className="page-container admin-page-mobile-wrapper" style={{ maxWidth: '1400px', margin: '0 auto' }}>
+        <MobileAppSalesReport onBack={() => setShowMobileReport(false)} />
+      </div>
+    );
+  }
 
   if (reportPrintType) {
     return (
@@ -190,12 +201,30 @@ const ReportsManagement = () => {
           <h2 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '4px', color: 'black' }}>Daily Bill Reports</h2>
           <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: 0 }}>Generate and print detailed reports for today's sales.</p>
         </div>
-        <div style={{ display: 'flex', gap: '12px' }}>
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
           <button className="secondary-button" onClick={() => setReportPrintType('hourly')} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer' }}>
             <Printer size={16} /> Hourly Report
           </button>
           <button className="primary-button" onClick={() => setReportPrintType('item')} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', borderRadius: '8px', background: 'var(--primary)', color: 'white', border: 'none', cursor: 'pointer' }}>
             <Printer size={16} /> Item Wise Report
+          </button>
+          <button
+            id="mobile-app-sales-report-btn"
+            onClick={() => setShowMobileReport(true)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '10px 16px',
+              borderRadius: '8px',
+              background: '#6c63ff',
+              color: 'white',
+              border: 'none',
+              cursor: 'pointer',
+              fontWeight: '500'
+            }}
+          >
+            <Smartphone size={16} /> Mobile App Sales
           </button>
         </div>
       </div>

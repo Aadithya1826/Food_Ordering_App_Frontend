@@ -24,6 +24,7 @@ import {
   Save,
 } from 'lucide-react';
 import VoiceWidget from '../components/VoiceWidget';
+import AddressAutocomplete from '../components/AddressAutocomplete';
 import DataudipiTitle from '../assets/Dataudupi-Title.png';
 import { restaurantService, tableService, reportsService, managerService } from '../services/api';
 import {
@@ -939,13 +940,12 @@ const AdminDashboard = () => {
                       </label>
                       <label style={{ display: 'grid', gap: '8px', fontSize: '13px', color: 'var(--text-secondary)' }}>
                         Address
-                        <input
-                          type="text"
-                          name="address"
+                        <AddressAutocomplete
+                          id="add-hotel-address"
                           value={newHotel.address}
-                          onChange={handleNewHotelChange}
+                          onChange={(val) => setNewHotel((prev) => ({ ...prev, address: val }))}
+                          onSelect={(val) => setNewHotel((prev) => ({ ...prev, address: val }))}
                           placeholder="Enter hotel address"
-                          style={{ padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--surface)', color: 'black' }}
                         />
                       </label>
                       <label style={{ display: 'grid', gap: '8px', fontSize: '13px', color: 'var(--text-secondary)' }}>
@@ -1040,12 +1040,12 @@ const AdminDashboard = () => {
                       </label>
                       <label style={{ display: 'grid', gap: '8px', fontSize: '13px', color: 'var(--text-secondary)' }}>
                         Address
-                        <input
-                          type="text"
+                        <AddressAutocomplete
+                          id="edit-hotel-address"
                           value={editingHotel.address || ''}
-                          onChange={(e) => setEditingHotel({ ...editingHotel, address: e.target.value })}
+                          onChange={(val) => setEditingHotel({ ...editingHotel, address: val })}
+                          onSelect={(val) => setEditingHotel({ ...editingHotel, address: val })}
                           placeholder="Enter hotel address"
-                          style={{ padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--surface)', color: 'black' }}
                         />
                       </label>
                       <label style={{ display: 'grid', gap: '8px', fontSize: '13px', color: 'var(--text-secondary)' }}>
