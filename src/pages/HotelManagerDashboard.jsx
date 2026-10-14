@@ -18,6 +18,7 @@ import {
   CreditCard,
   Save,
   ClipboardList,
+  CalendarDays,
 } from 'lucide-react';
 import DataudipiTitle from '../assets/Dataudupi-Title.png';
 import ChefMascot from '../assets/chef_mascot.png';
@@ -25,6 +26,7 @@ import { orderService, inventoryService, menuService, tableService, reportsServi
 import MenuManagement from '../components/MenuManagement';
 import OrdersManagement from '../components/OrdersManagement';
 import CateringMenuManagement from '../components/CateringMenuManagement';
+import CateringOrdersManagement from '../components/CateringOrdersManagement';
 import TableManagement from '../components/TableManagement';
 import InventoryManagement from '../components/InventoryManagement';
 import PaymentManagement from '../components/PaymentManagement';
@@ -136,7 +138,8 @@ const HotelManagerDashboard = () => {
   const menuNavigation = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'menu', label: 'Menu', icon: UtensilsCrossed },
-    { id: 'catering_menu', label: 'Catering Menu', icon: ClipboardList },
+    { id: 'catering_menu', label: 'Menu Packages', icon: ClipboardList },
+    { id: 'catering_orders', label: 'Catering Orders', icon: CalendarDays },
     { id: 'orders', label: 'Orders', icon: ShoppingCart },
     { id: 'tables', label: 'Tables & QR', icon: Table2 },
     { id: 'inventory', label: 'Inventory', icon: Package },
@@ -528,6 +531,10 @@ const HotelManagerDashboard = () => {
 
           {activePage === 'catering_menu' && (
             <CateringMenuManagement />
+          )}
+
+          {activePage === 'catering_orders' && (
+            <CateringOrdersManagement />
           )}
 
           {activePage === 'orders' && (

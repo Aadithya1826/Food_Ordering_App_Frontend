@@ -378,5 +378,61 @@ export const recipeService = {
   },
 };
 
+export const cateringAdminService = {
+  getPackages: async (params = {}) => {
+    const response = await api.get('/api/v1/admin/catering/packages', { params });
+    return response.data;
+  },
+
+  getPackage: async (packageCode, params = {}) => {
+    const response = await api.get(`/api/v1/admin/catering/packages/${encodeURIComponent(packageCode)}`, { params });
+    return response.data;
+  },
+
+  createPackage: async (payload) => {
+    const response = await api.post('/api/v1/admin/catering/packages', payload);
+    return response.data;
+  },
+
+  updatePackage: async (packageCode, payload) => {
+    const response = await api.put(`/api/v1/admin/catering/packages/${encodeURIComponent(packageCode)}`, payload);
+    return response.data;
+  },
+
+  togglePackageAvailability: async (packageCode, isAvailable) => {
+    const response = await api.patch(`/api/v1/admin/catering/packages/${encodeURIComponent(packageCode)}/availability`, {
+      is_available: isAvailable
+    });
+    return response.data;
+  },
+
+  deletePackage: async (packageCode) => {
+    const response = await api.delete(`/api/v1/admin/catering/packages/${encodeURIComponent(packageCode)}`);
+    return response.data;
+  },
+
+  getOrders: async (params = {}) => {
+    const response = await api.get('/api/v1/admin/catering/orders', { params });
+    return response.data;
+  },
+
+  getOrderDetail: async (orderId) => {
+    const response = await api.get(`/api/v1/admin/catering/orders/${orderId}`);
+    return response.data;
+  },
+
+  updateOrderStatus: async (orderId, orderStatus) => {
+    const response = await api.patch(`/api/v1/admin/catering/orders/${orderId}/status`, {
+      order_status: orderStatus
+    });
+    return response.data;
+  },
+
+  getCateringReports: async (params = {}) => {
+    const response = await api.get('/api/v1/admin/catering/reports', { params });
+    return response.data;
+  }
+};
+
 export default api;
 

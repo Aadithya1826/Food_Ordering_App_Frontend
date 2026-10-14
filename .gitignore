@@ -3,6 +3,8 @@ dist/
 .venv/
 *.pyc
 .DS_Store
+.env
+.env.*
 .env.local
 .env.*.local
 npm-debug.log*

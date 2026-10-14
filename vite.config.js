@@ -23,6 +23,12 @@ export default defineConfig(({ mode }) => {
     preview: {
       port: 3000,
     },
+    build: {
+      target: 'esnext',
+      minify: 'esbuild',
+      sourcemap: false,
+      chunkSizeWarningLimit: 2000,
+    },
   };
 });
 
