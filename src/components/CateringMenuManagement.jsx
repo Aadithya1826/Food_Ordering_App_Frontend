@@ -40,8 +40,18 @@ const CateringMenuManagement = () => {
   const fetchPackages = async () => {
     try {
       setLoading(true);
-      const data = await cateringAdminService.getPackages();
-      setPackages(data);
+      let data = [];
+      try {
+        data = await cateringAdminService.getPackages();
+      } catch (adminErr) {
+        console.warn('Admin packages fetch failed, falling back to public catering endpoint:', adminErr);
+        data = await cateringAdminService.getPublicPackages();
+      }
+      if (Array.isArray(data)) {
+        setPackages(data);
+      } else {
+        setPackages([]);
+      }
     } catch (error) {
       console.error('Failed to fetch catering packages:', error);
       toast.error('Failed to load catering packages');
@@ -116,15 +126,55 @@ const CateringMenuManagement = () => {
     setIsModalOpen(true);
   };
 
-  const openEditModal = (pkg) => {
+  const openEditModal = async (pkg) => {
     setEditingPackage(pkg);
+    let itemsToEdit = (pkg.items && pkg.items.length > 0) ? pkg.items.map(i => ({ ...i })) : [];
+
+    // If items aren't already loaded on the package object, fetch them
+    if (itemsToEdit.length === 0 && pkg.code) {
+      try {
+        const detail = await cateringAdminService.getPackage(pkg.code);
+        if (detail && detail.items && detail.items.length > 0) {
+          itemsToEdit = detail.items.map(i => ({ ...i }));
+        }
+      } catch (err) {
+        try {
+          const pubDetail = await cateringAdminService.getPublicPackageItems(pkg.code);
+          if (pubDetail && pubDetail.categories) {
+            const flatItems = [];
+            pubDetail.categories.forEach(cat => {
+              (cat.items || []).forEach(it => {
+                flatItems.push({
+                  id: it.id,
+                  item_name: it.item_name || it.name,
+                  category_name: cat.category_name || 'General',
+                  customization_group: it.customization_group || null,
+                  is_swappable: Boolean(it.is_swappable),
+                  is_removable: Boolean(it.is_removable),
+                  add_price: Number(it.add_price || 30),
+                  remove_price: Number(it.remove_price || -10),
+                  same_group_replace_price: Number(it.same_group_replace_price || 0),
+                  upgrade_group: it.upgrade_group || null,
+                  upgrade_price: Number(it.upgrade_price || 0),
+                  display_order: it.display_order || 0
+                });
+              });
+            });
+            itemsToEdit = flatItems;
+          }
+        } catch (err2) {
+          console.warn('Could not load package items detail:', err2);
+        }
+      }
+    }
+
     setFormData({
-      name: pkg.name,
-      code: pkg.code,
-      price: pkg.price,
-      minimum_order_quantity: pkg.minimum_order_quantity,
-      is_available: pkg.is_available,
-      items: (pkg.items && pkg.items.length > 0) ? pkg.items.map(i => ({ ...i })) : []
+      name: pkg.name || '',
+      code: pkg.code || '',
+      price: pkg.price !== undefined ? pkg.price : '',
+      minimum_order_quantity: pkg.minimum_order_quantity || 50,
+      is_available: pkg.is_available !== undefined ? pkg.is_available : true,
+      items: itemsToEdit
     });
     setIsModalOpen(true);
   };
@@ -580,16 +630,34 @@ const CateringMenuManagement = () => {
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      {(pkg.dishes_sample && pkg.dishes_sample.length > 0 ? pkg.dishes_sample : [pkg.items_summary || 'Assorted vegetarian items']).map((dishLine, idx) => (
-                        <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-                          <span style={{ color: '#10B981', display: 'flex', alignItems: 'center', marginTop: '2px' }}>
-                            <Check size={14} strokeWidth={3} />
-                          </span>
-                          <span style={{ fontSize: '12px', color: '#374151', lineHeight: '1.4', fontWeight: '500' }}>
-                            {dishLine}
-                          </span>
+                      {pkg.items && pkg.items.length > 0 ? (
+                        pkg.items.slice(0, 5).map((it, idx) => (
+                          <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                            <span style={{ color: '#10B981', display: 'flex', alignItems: 'center', marginTop: '2px' }}>
+                              <Check size={14} strokeWidth={3} />
+                            </span>
+                            <span style={{ fontSize: '12px', color: '#374151', lineHeight: '1.4', fontWeight: '500' }}>
+                              {it.item_name} {it.category_name && it.category_name !== 'General' ? <span style={{ color: '#9CA3AF', fontSize: '11px' }}>• {it.category_name}</span> : ''}
+                            </span>
+                          </div>
+                        ))
+                      ) : (
+                        (pkg.dishes_sample && pkg.dishes_sample.length > 0 ? pkg.dishes_sample : [pkg.items_summary || 'Assorted vegetarian items']).map((dishLine, idx) => (
+                          <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                            <span style={{ color: '#10B981', display: 'flex', alignItems: 'center', marginTop: '2px' }}>
+                              <Check size={14} strokeWidth={3} />
+                            </span>
+                            <span style={{ fontSize: '12px', color: '#374151', lineHeight: '1.4', fontWeight: '500' }}>
+                              {dishLine}
+                            </span>
+                          </div>
+                        ))
+                      )}
+                      {pkg.items && pkg.items.length > 5 && (
+                        <div style={{ fontSize: '11px', color: '#6B7280', paddingLeft: '22px', fontWeight: '500' }}>
+                          + {pkg.items.length - 5} more items
                         </div>
-                      ))}
+                      )}
                     </div>
                   </div>
                 </div>

@@ -384,6 +384,16 @@ export const cateringAdminService = {
     return response.data;
   },
 
+  getPublicPackages: async (params = {}) => {
+    const response = await api.get('/api/v1/public/catering/packages', { params });
+    return response.data;
+  },
+
+  getPublicPackageItems: async (packageCode) => {
+    const response = await api.get(`/api/v1/public/catering/packages/${encodeURIComponent(packageCode)}/items`);
+    return response.data;
+  },
+
   getPackage: async (packageCode, params = {}) => {
     const response = await api.get(`/api/v1/admin/catering/packages/${encodeURIComponent(packageCode)}`, { params });
     return response.data;

@@ -138,7 +138,7 @@ const HotelManagerDashboard = () => {
   const menuNavigation = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'menu', label: 'Menu', icon: UtensilsCrossed },
-    { id: 'catering_menu', label: 'Menu Packages', icon: ClipboardList },
+    { id: 'catering_menu', label: 'Catering Packages', icon: ClipboardList },
     { id: 'catering_orders', label: 'Catering Orders', icon: CalendarDays },
     { id: 'orders', label: 'Orders', icon: ShoppingCart },
     { id: 'tables', label: 'Tables & QR', icon: Table2 },
