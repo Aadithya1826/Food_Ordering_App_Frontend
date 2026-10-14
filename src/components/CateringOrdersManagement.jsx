@@ -39,7 +39,7 @@ const CateringOrdersManagement = () => {
       if (dateFilter) params.date_from = dateFilter;
 
       const data = await cateringAdminService.getOrders(params);
-      setOrders(data);
+      setOrders(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Failed to fetch catering orders:', error);
       toast.error('Failed to load catering orders');
