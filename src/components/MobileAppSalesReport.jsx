@@ -52,6 +52,7 @@ const MobileAppSalesReport = ({ onBack }) => {
   const [searchTerm, setSearchTerm]       = useState('');
   const [statusFilter, setStatusFilter]   = useState('ALL');
   const [typeFilter, setTypeFilter]       = useState('ALL');
+  const [paymentFilter, setPaymentFilter] = useState('ALL');
   const [selectedOrder, setSelectedOrder] = useState(null);
 
   // Fetch whenever date changes
@@ -91,6 +92,12 @@ const MobileAppSalesReport = ({ onBack }) => {
       if (typeFilter !== 'ALL' && (order.order_type || '').toUpperCase() !== typeFilter) {
         return false;
       }
+      // Payment filter (Paid vs Unpaid)
+      if (paymentFilter !== 'ALL') {
+        const isPaid = (order.payment_status || '').toLowerCase() === 'paid';
+        if (paymentFilter === 'PAID' && !isPaid) return false;
+        if (paymentFilter === 'UNPAID' && isPaid) return false;
+      }
       // Search query (customer name, phone, order id, or items summary)
       if (searchTerm.trim()) {
         const q = searchTerm.toLowerCase().trim();
@@ -117,15 +124,16 @@ const MobileAppSalesReport = ({ onBack }) => {
 
     const headers = [
       'Order ID',
-      'Date & Time (IST)',
       'Customer Name',
       'Phone Number',
       'Order Type',
       'Ordered Items',
       'Items Count',
-      'Order Status',
-      'Payment Status',
+      'Date',
+      'Time',
+      'Paid or Unpaid',
       'Payment Method',
+      'Order Status',
       'Total Amount (INR)'
     ];
 
@@ -137,15 +145,16 @@ const MobileAppSalesReport = ({ onBack }) => {
 
     const rows = ordersToExport.map((o) => [
       escapeCSV(o.order_id || `ORD-${o.id}`),
-      escapeCSV(o.date_time || `${o.date} ${o.time}`),
       escapeCSV(o.customer_name || 'Guest'),
       escapeCSV(o.customer_phone || ''),
       escapeCSV(o.order_type || ''),
       escapeCSV(o.items_summary || (o.items || []).map(i => `${i.name} x${i.quantity}`).join(', ')),
       escapeCSV(o.items_count || (o.items || []).length || 0),
-      escapeCSV(o.status || ''),
-      escapeCSV(o.payment_status || ''),
+      escapeCSV(o.date || ''),
+      escapeCSV(o.time || ''),
+      escapeCSV(o.payment_status || 'Pending'),
       escapeCSV(o.payment_method || ''),
+      escapeCSV(o.status || ''),
       escapeCSV(Number(o.total_amount || 0).toFixed(2))
     ]);
 
@@ -398,22 +407,40 @@ const MobileAppSalesReport = ({ onBack }) => {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', flexShrink: 0 }}>
-            <input
-              id="mobile-report-date-picker"
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              style={{
-                padding: '9px 14px',
-                borderRadius: '8px',
-                border: '1px solid var(--border)',
-                background: 'var(--surface)',
-                color: 'black',
-                fontWeight: '500',
-                fontSize: '13px',
-                cursor: 'pointer'
-              }}
-            />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <input
+                id="mobile-report-date-picker"
+                type="date"
+                value={selectedDate === 'all' ? '' : selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                style={{
+                  padding: '9px 14px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border)',
+                  background: 'var(--surface)',
+                  color: 'black',
+                  fontWeight: '500',
+                  fontSize: '13px',
+                  cursor: 'pointer'
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => setSelectedDate(selectedDate === 'all' ? new Date().toISOString().split('T')[0] : 'all')}
+                style={{
+                  padding: '9px 12px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border)',
+                  background: selectedDate === 'all' ? '#FFF7ED' : 'var(--surface)',
+                  color: selectedDate === 'all' ? '#EA580C' : 'var(--text-secondary)',
+                  fontWeight: '700',
+                  fontSize: '12px',
+                  cursor: 'pointer'
+                }}
+              >
+                {selectedDate === 'all' ? 'All Dates (Active)' : 'All Dates'}
+              </button>
+            </div>
 
             {/* Download CSV Report Button */}
             <button
@@ -780,6 +807,25 @@ const MobileAppSalesReport = ({ onBack }) => {
                   <option value="DELIVERY">Delivery</option>
                 </select>
 
+                {/* Payment Filter */}
+                <select
+                  value={paymentFilter}
+                  onChange={(e) => setPaymentFilter(e.target.value)}
+                  style={{
+                    padding: '7px 10px',
+                    borderRadius: '6px',
+                    border: '1px solid var(--border)',
+                    fontSize: '12px',
+                    background: 'var(--background)',
+                    color: 'black',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <option value="ALL">All Payments</option>
+                  <option value="PAID">Paid Only</option>
+                  <option value="UNPAID">Unpaid Only</option>
+                </select>
+
                 {/* Download CSV button */}
                 <button
                   onClick={handleExportCSV}
@@ -805,17 +851,18 @@ const MobileAppSalesReport = ({ onBack }) => {
 
             {/* Table */}
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '850px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '950px' }}>
                 <thead>
                   <tr style={{ background: 'var(--background)', borderBottom: '1px solid var(--border)' }}>
                     <th style={{ padding: '12px 18px', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Order ID</th>
-                    <th style={{ padding: '12px 18px', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Date & Time</th>
                     <th style={{ padding: '12px 18px', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Customer Name</th>
                     <th style={{ padding: '12px 18px', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Phone No</th>
                     <th style={{ padding: '12px 18px', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Order Type</th>
                     <th style={{ padding: '12px 18px', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase', minWidth: '180px' }}>Ordered Items</th>
+                    <th style={{ padding: '12px 18px', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Date</th>
+                    <th style={{ padding: '12px 18px', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Time</th>
+                    <th style={{ padding: '12px 18px', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Paid / Unpaid</th>
                     <th style={{ padding: '12px 18px', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Order Status</th>
-                    <th style={{ padding: '12px 18px', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Payment</th>
                     <th style={{ padding: '12px 18px', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textAlign: 'right', textTransform: 'uppercase' }}>Total Amount</th>
                     <th style={{ padding: '12px 18px', fontSize: '11px', fontWeight: '700', color: 'var(--text-secondary)', textAlign: 'center', textTransform: 'uppercase' }}>Action</th>
                   </tr>
@@ -823,7 +870,7 @@ const MobileAppSalesReport = ({ onBack }) => {
                 <tbody>
                   {filteredOrders.length === 0 ? (
                     <tr>
-                      <td colSpan={10} style={{ padding: '36px 18px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '13px' }}>
+                      <td colSpan={11} style={{ padding: '36px 18px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '13px' }}>
                         No orders match the current filter or search criteria.
                       </td>
                     </tr>
@@ -842,13 +889,7 @@ const MobileAppSalesReport = ({ onBack }) => {
                       >
                         {/* Order ID */}
                         <td style={{ padding: '14px 18px', fontSize: '12px', fontWeight: '700', color: 'black', fontFamily: 'monospace' }}>
-                          {order.order_id || `ORD-${order.id}`}
-                        </td>
-
-                        {/* Date & Time */}
-                        <td style={{ padding: '14px 18px', fontSize: '12px', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
-                          <div style={{ fontWeight: '600', color: 'black' }}>{order.date}</div>
-                          <div style={{ fontSize: '11px' }}>{order.time}</div>
+                          #{order.order_id || `ORD-${order.id}`}
                         </td>
 
                         {/* Customer Name */}
@@ -895,14 +936,24 @@ const MobileAppSalesReport = ({ onBack }) => {
                           )}
                         </td>
 
+                        {/* Date */}
+                        <td style={{ padding: '14px 18px', fontSize: '12px', fontWeight: '600', color: 'black', whiteSpace: 'nowrap' }}>
+                          {order.date}
+                        </td>
+
+                        {/* Time */}
+                        <td style={{ padding: '14px 18px', fontSize: '12px', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                          {order.time}
+                        </td>
+
+                        {/* Paid or Unpaid */}
+                        <td style={{ padding: '14px 18px' }}>
+                          {getPaymentBadge(order.payment_status, order.payment_method)}
+                        </td>
+
                         {/* Order Status */}
                         <td style={{ padding: '14px 18px' }}>
                           {getStatusBadge(order.status)}
-                        </td>
-
-                        {/* Payment Status & Method */}
-                        <td style={{ padding: '14px 18px' }}>
-                          {getPaymentBadge(order.payment_status, order.payment_method)}
                         </td>
 
                         {/* Total Amount */}
