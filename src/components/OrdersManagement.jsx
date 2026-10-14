@@ -76,6 +76,7 @@ const OrdersManagement = () => {
   const getPaymentDisplayInfo = (order) => {
     const method = (order?.payment_method || '').toLowerCase().trim();
     const status = (order?.payment_status || '').toLowerCase().trim();
+    const isPaid = status === 'paid';
 
     // Check if user selected Pay at the Counter / Cash
     const isPayAtCounter = 
@@ -84,23 +85,25 @@ const OrdersManagement = () => {
       method.includes('cod') ||
       method.includes('pay at counter');
 
-    // Check if payment is done through UPI / Online
-    const isUpi = 
+    const isUpiMethod = 
       method.includes('upi') || 
       method.includes('razorpay') || 
       method.includes('online') || 
       method.includes('gpay') || 
       method.includes('phonepe') || 
       method.includes('card') || 
-      method.includes('wallet') ||
-      (!isPayAtCounter && status === 'paid');
+      method.includes('wallet');
 
-    if (isUpi) {
+    // If order payment is completed (either via UPI or cash collected and marked Paid):
+    // Green styling when paid
+    if (isPaid) {
+      const badgeText = isUpiMethod ? 'UPI Paid' : (isPayAtCounter ? 'Counter Paid' : 'Paid');
       return {
-        type: 'UPI',
-        isUpi: true,
-        label: 'UPI Paid',
-        badgeText: 'UPI Paid',
+        type: 'PAID',
+        isPaid: true,
+        isUpi: isUpiMethod,
+        label: badgeText,
+        badgeText: badgeText,
         themeColor: '#16a34a',
         cardBg: '#f0fdf4',
         cardBorder: '2px solid #22c55e',
@@ -115,12 +118,14 @@ const OrdersManagement = () => {
       };
     }
 
-    // Default to Pay at Counter (Red)
+    // Otherwise, payment is UNPAID / Pending (Red)
+    const badgeText = isPayAtCounter ? 'Pay at Counter' : 'Payment Pending';
     return {
-      type: 'COUNTER',
+      type: 'UNPAID',
+      isPaid: false,
       isUpi: false,
-      label: 'Pay at Counter',
-      badgeText: 'Pay at Counter',
+      label: badgeText,
+      badgeText: badgeText,
       themeColor: '#dc2626',
       cardBg: '#fef2f2',
       cardBorder: '2px solid #ef4444',
@@ -453,6 +458,66 @@ const OrdersManagement = () => {
                 </span>
                 <span style={{ fontSize: '14px', fontWeight: '800', color: paymentInfo.amountColor }}>₹ {order.total_amount}</span>
               </div>
+              {/* Paid / Unpaid verification control */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '4px 8px',
+                borderRadius: '16px',
+                background: paymentInfo.isPaid ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                border: `1px solid ${paymentInfo.isPaid ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+                marginBottom: '10px'
+              }}>
+                <span style={{ fontSize: '10px', fontWeight: '700', color: paymentInfo.isPaid ? '#15803d' : '#b91c1c', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: paymentInfo.isPaid ? '#22c55e' : '#ef4444' }} />
+                  {paymentInfo.isPaid ? 'PAID' : 'UNPAID'}
+                </span>
+
+                <div style={{ display: 'inline-flex', borderRadius: '12px', background: 'white', padding: '2px', border: '1px solid rgba(0,0,0,0.08)' }}>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!paymentInfo.isPaid) updatePaymentStatus(order.order_id, true);
+                    }}
+                    style={{
+                      padding: '2px 8px',
+                      borderRadius: '10px',
+                      border: 'none',
+                      fontSize: '10px',
+                      fontWeight: '700',
+                      cursor: paymentInfo.isPaid ? 'default' : 'pointer',
+                      background: paymentInfo.isPaid ? '#16a34a' : 'transparent',
+                      color: paymentInfo.isPaid ? 'white' : '#666',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    ✓ Paid
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (paymentInfo.isPaid) updatePaymentStatus(order.order_id, false);
+                    }}
+                    style={{
+                      padding: '2px 8px',
+                      borderRadius: '10px',
+                      border: 'none',
+                      fontSize: '10px',
+                      fontWeight: '700',
+                      cursor: !paymentInfo.isPaid ? 'default' : 'pointer',
+                      background: !paymentInfo.isPaid ? '#dc2626' : 'transparent',
+                      color: !paymentInfo.isPaid ? 'white' : '#666',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    ✕ Unpaid
+                  </button>
+                </div>
+              </div>
+
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
                 <button onClick={() => setSelectedKOTOrder(order)} style={{ flex: 1, padding: '10px 0', background: '#f5f5f5', border: 'none', borderRadius: '20px', fontSize: '12px', fontWeight: '700', color: '#888', cursor: 'pointer' }}>Details</button>
                 {order.status === 'PENDING' || order.status === 'CONFIRMED' ? (
@@ -613,6 +678,67 @@ const OrdersManagement = () => {
                       flexDirection: 'column',
                       gap: '8px'
                     }}>
+                      {/* Paid / Unpaid verification control */}
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '6px 12px',
+                        borderRadius: '20px',
+                        background: paymentInfo.isPaid ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                        border: `1px solid ${paymentInfo.isPaid ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+                      }}>
+                        <span style={{ fontSize: '11px', fontWeight: '700', color: paymentInfo.isPaid ? '#15803d' : '#b91c1c', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: paymentInfo.isPaid ? '#22c55e' : '#ef4444' }} />
+                          Payment: {paymentInfo.isPaid ? 'PAID' : 'UNPAID'}
+                        </span>
+
+                        <div style={{ display: 'inline-flex', borderRadius: '14px', background: 'white', padding: '2px', border: '1px solid rgba(0,0,0,0.08)' }}>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (!paymentInfo.isPaid) updatePaymentStatus(order.order_id, true);
+                            }}
+                            style={{
+                              padding: '3px 10px',
+                              borderRadius: '12px',
+                              border: 'none',
+                              fontSize: '11px',
+                              fontWeight: '700',
+                              cursor: paymentInfo.isPaid ? 'default' : 'pointer',
+                              background: paymentInfo.isPaid ? '#16a34a' : 'transparent',
+                              color: paymentInfo.isPaid ? 'white' : '#666',
+                              transition: 'all 0.15s ease',
+                              boxShadow: paymentInfo.isPaid ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
+                            }}
+                          >
+                            ✓ Paid
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (paymentInfo.isPaid) updatePaymentStatus(order.order_id, false);
+                            }}
+                            style={{
+                              padding: '3px 10px',
+                              borderRadius: '12px',
+                              border: 'none',
+                              fontSize: '11px',
+                              fontWeight: '700',
+                              cursor: !paymentInfo.isPaid ? 'default' : 'pointer',
+                              background: !paymentInfo.isPaid ? '#dc2626' : 'transparent',
+                              color: !paymentInfo.isPaid ? 'white' : '#666',
+                              transition: 'all 0.15s ease',
+                              boxShadow: !paymentInfo.isPaid ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
+                            }}
+                          >
+                            ✕ Unpaid
+                          </button>
+                        </div>
+                      </div>
+
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
                         <button onClick={() => setSelectedKOTOrder(order)} style={{ flex: 1, padding: '8px 0', borderRadius: '24px', border: '1px solid #e0e0e0', background: 'transparent', fontSize: '11px', fontWeight: '600', color: '#666', cursor: 'pointer' }}>
                           Details
@@ -636,23 +762,6 @@ const OrdersManagement = () => {
                           </button>
                         )}
                       </div>
-
-                      {order.payment_method?.toLowerCase() === 'cash' && (
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '4px' }}>
-                          <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '600' }}>Payment (Cash):</span>
-                          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
-                            <input 
-                              type="checkbox" 
-                              checked={order.payment_status?.toLowerCase() === 'paid'}
-                              onChange={(e) => updatePaymentStatus(order.order_id, e.target.checked)}
-                              style={{ cursor: 'pointer' }}
-                            />
-                            <span style={{ fontSize: '12px', fontWeight: '500', color: order.payment_status?.toLowerCase() === 'paid' ? '#2d7a4a' : '#ff8c42' }}>
-                              {order.payment_status?.toLowerCase() === 'paid' ? 'Paid' : 'Pending'}
-                            </span>
-                          </label>
-                        </div>
-                      )}
                     </div>
                   </div>
                 ); })}
