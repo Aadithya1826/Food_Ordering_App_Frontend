@@ -266,9 +266,9 @@ const MobileAppSalesReport = ({ onBack }) => {
         borderRadius: '12px',
         fontSize: '11px',
         fontWeight: '600',
-        background: 'rgba(108, 99, 255, 0.12)',
-        color: '#6c63ff',
-        border: '1px solid rgba(108, 99, 255, 0.3)'
+        background: 'rgba(255, 140, 66, 0.12)',
+        color: '#ea580c',
+        border: '1px solid rgba(255, 140, 66, 0.3)'
       }}>
         <Utensils size={12} /> Dine-In
       </span>
@@ -351,7 +351,7 @@ const MobileAppSalesReport = ({ onBack }) => {
       label: 'Total Mobile Orders',
       value: reportData?.orders?.length ?? (reportData?.total_orders ?? 0),
       icon: FileSpreadsheet,
-      color: '#0284c7'
+      color: '#ea580c'
     },
     {
       label: 'Total Qty Sold',
@@ -561,9 +561,9 @@ const MobileAppSalesReport = ({ onBack }) => {
                 {
                   key: 'DINE_IN',
                   label: 'Dine-In',
-                  color: '#6c63ff',
-                  bgLight: 'rgba(108, 99, 255, 0.08)',
-                  borderCol: 'rgba(108, 99, 255, 0.25)',
+                  color: '#ea580c',
+                  bgLight: 'rgba(255, 140, 66, 0.08)',
+                  borderCol: 'rgba(255, 140, 66, 0.25)',
                   icon: Utensils,
                 },
                 {
@@ -710,9 +710,9 @@ const MobileAppSalesReport = ({ onBack }) => {
                     fontWeight: '700',
                     padding: '2px 8px',
                     borderRadius: '10px',
-                    background: 'rgba(108, 99, 255, 0.1)',
-                    color: '#6c63ff',
-                    border: '1px solid rgba(108, 99, 255, 0.2)'
+                    background: 'rgba(255, 140, 66, 0.1)',
+                    color: '#ea580c',
+                    border: '1px solid rgba(255, 140, 66, 0.25)'
                   }}>
                     {filteredOrders.length} {filteredOrders.length === 1 ? 'Order' : 'Orders'}
                   </span>
@@ -899,8 +899,9 @@ const MobileAppSalesReport = ({ onBack }) => {
                               width: '24px',
                               height: '24px',
                               borderRadius: '50%',
-                              background: 'rgba(108, 99, 255, 0.1)',
-                              color: '#6c63ff',
+                              background: '#fff7ed',
+                              color: '#ea580c',
+                              border: '1px solid #fed7aa',
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',

@@ -217,11 +217,13 @@ const ReportsManagement = () => {
               gap: '8px',
               padding: '10px 16px',
               borderRadius: '8px',
-              background: '#6c63ff',
+              background: 'linear-gradient(135deg, #ff8c42 0%, #ea580c 100%)',
               color: 'white',
               border: 'none',
               cursor: 'pointer',
-              fontWeight: '500'
+              fontWeight: '600',
+              boxShadow: '0 2px 8px rgba(234, 88, 12, 0.25)',
+              transition: 'all 0.2s ease'
             }}
           >
             <Smartphone size={16} /> Mobile App Sales
