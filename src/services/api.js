@@ -363,6 +363,14 @@ export const reportsService = {
     const response = await api.get('/api/v1/reports/mobile-app', { params });
     return response.data;
   },
+  getCashierReport: async (params = {}) => {
+    const response = await api.get('/api/v1/reports/cashier', { params });
+    return response.data;
+  },
+  getTotalSalesReport: async (params = {}) => {
+    const response = await api.get('/api/v1/reports/total-sales', { params });
+    return response.data;
+  },
 };
 
 export const recipeService = {

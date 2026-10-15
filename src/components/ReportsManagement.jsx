@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import MobileAppSalesReport from './MobileAppSalesReport';
+import CashierSalesReport from './CashierSalesReport';
+import TotalSalesReport from './TotalSalesReport';
 import {
   TrendingUp,
   CreditCard,
@@ -10,7 +12,8 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Printer,
-  Smartphone
+  Smartphone,
+  Receipt
 } from 'lucide-react';
 import { reportsService } from '../services/api';
 import ReportView from './ReportView';
@@ -28,7 +31,7 @@ const ReportsManagement = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [reportPrintType, setReportPrintType] = useState(null);
-  const [showMobileReport, setShowMobileReport] = useState(false);
+  const [activeSalesReport, setActiveSalesReport] = useState(null); // 'mobile' | 'cashier' | 'total'
 
   useEffect(() => {
     const fetchReports = async () => {
@@ -102,10 +105,26 @@ const ReportsManagement = () => {
     }
   ];
 
-  if (showMobileReport) {
+  if (activeSalesReport === 'mobile') {
     return (
       <div className="page-container admin-page-mobile-wrapper" style={{ maxWidth: '1400px', margin: '0 auto' }}>
-        <MobileAppSalesReport onBack={() => setShowMobileReport(false)} />
+        <MobileAppSalesReport onBack={() => setActiveSalesReport(null)} />
+      </div>
+    );
+  }
+
+  if (activeSalesReport === 'cashier') {
+    return (
+      <div className="page-container admin-page-mobile-wrapper" style={{ maxWidth: '1400px', margin: '0 auto' }}>
+        <CashierSalesReport onBack={() => setActiveSalesReport(null)} />
+      </div>
+    );
+  }
+
+  if (activeSalesReport === 'total') {
+    return (
+      <div className="page-container admin-page-mobile-wrapper" style={{ maxWidth: '1400px', margin: '0 auto' }}>
+        <TotalSalesReport onBack={() => setActiveSalesReport(null)} />
       </div>
     );
   }
@@ -202,15 +221,55 @@ const ReportsManagement = () => {
           <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: 0 }}>Generate and print detailed reports for today's sales.</p>
         </div>
         <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-          <button className="secondary-button" onClick={() => setReportPrintType('hourly')} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer' }}>
+          <button className="secondary-button" onClick={() => setReportPrintType('hourly')} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', fontWeight: '500' }}>
             <Printer size={16} /> Hourly Report
           </button>
-          <button className="primary-button" onClick={() => setReportPrintType('item')} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', borderRadius: '8px', background: 'var(--primary)', color: 'white', border: 'none', cursor: 'pointer' }}>
+          <button className="secondary-button" onClick={() => setReportPrintType('item')} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', fontWeight: '500' }}>
             <Printer size={16} /> Item Wise Report
           </button>
           <button
+            id="total-sales-report-btn"
+            onClick={() => setActiveSalesReport('total')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '10px 16px',
+              borderRadius: '8px',
+              background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+              color: 'white',
+              border: '1px solid #334155',
+              cursor: 'pointer',
+              fontWeight: '600',
+              boxShadow: '0 2px 8px rgba(15, 23, 42, 0.25)',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            <TrendingUp size={16} color="#38bdf8" /> Total Sales (All C & M)
+          </button>
+          <button
+            id="cashier-sales-report-btn"
+            onClick={() => setActiveSalesReport('cashier')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '10px 16px',
+              borderRadius: '8px',
+              background: 'linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)',
+              color: 'white',
+              border: 'none',
+              cursor: 'pointer',
+              fontWeight: '600',
+              boxShadow: '0 2px 8px rgba(79, 70, 229, 0.25)',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            <CreditCard size={16} /> Cashier Sales (C)
+          </button>
+          <button
             id="mobile-app-sales-report-btn"
-            onClick={() => setShowMobileReport(true)}
+            onClick={() => setActiveSalesReport('mobile')}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -226,7 +285,7 @@ const ReportsManagement = () => {
               transition: 'all 0.2s ease'
             }}
           >
-            <Smartphone size={16} /> Mobile App Sales
+            <Smartphone size={16} /> Mobile App Sales (M)
           </button>
         </div>
       </div>

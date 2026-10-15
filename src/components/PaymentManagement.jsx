@@ -164,10 +164,33 @@ const PaymentManagement = () => {
                   const isPaid = order.payment_status?.toLowerCase() === 'paid';
                   const isPending = order.payment_status?.toLowerCase() === 'pending';
                   const isFailed = order.payment_status?.toLowerCase() === 'failed';
+                  const isCashier = order.order_source === 'CASHIER_POS' || Boolean(order.user_id);
+                  const sourceBadge = isCashier ? '(C)' : '(M)';
+                  const sourceLabel = isCashier ? 'Cashier POS Order' : 'Mobile App Order';
 
                   return (
                     <tr key={order.order_id} style={{ borderBottom: '1px solid #eaeaea' }}>
-                      <td style={{ padding: '16px 24px', fontWeight: '700', fontSize: '14px', color: '#ff6b35' }}>#{order.order_id}</td>
+                      <td style={{ padding: '16px 24px', fontWeight: '700', fontSize: '14px', color: '#ff6b35' }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                          <span>#{order.order_id}</span>
+                          <span
+                            title={sourceLabel}
+                            style={{
+                              fontSize: '11px',
+                              fontWeight: '700',
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              background: isCashier ? '#e0e7ff' : '#ffedd5',
+                              color: isCashier ? '#4338ca' : '#c2410c',
+                              border: isCashier ? '1px solid #c7d2fe' : '1px solid #fed7aa',
+                              letterSpacing: '0.3px',
+                              cursor: 'help'
+                            }}
+                          >
+                            {sourceBadge}
+                          </span>
+                        </div>
+                      </td>
                       <td style={{ padding: '16px 24px', fontWeight: '600', fontSize: '14px', color: '#1a1a2e' }}>
                         {(!order.table_number || order.table_number === 'N/A' || order.table_number.toString().toLowerCase() === 'takeaway') ? (order.order_type || 'Takeaway') : order.table_number}
                       </td>
