@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Clock, ChefHat, CheckCircle2, Truck, Search, SlidersHorizontal, Bell, BellOff, Volume2 } from 'lucide-react';
+import { Clock, ChefHat, CheckCircle2, Truck, Search, SlidersHorizontal, Bell, BellOff, Volume2, User, Phone } from 'lucide-react';
 import { orderService } from '../services/api';
 import { kotAudio, ringKOTOrders, stopKOTRinging, unlockKOTAudio } from '../utils/kotAudio';
 
@@ -31,6 +31,7 @@ const OrdersManagement = () => {
   const [selectedKOTOrder, setSelectedKOTOrder] = useState(null);
   const [orderMode, setOrderMode] = useState('DINE_IN'); // 'DINE_IN' | 'TAKEAWAY'
   const [ringingInfo, setRingingInfo] = useState({ isRinging: false, remainingCount: 0 });
+  const [searchTerm, setSearchTerm] = useState('');
   const knownOrderIdsRef = useRef(null);
 
   // Subscribe to KOT audio controller state
@@ -238,6 +239,61 @@ const OrdersManagement = () => {
     }
   };
 
+  // Helper to format placed time (e.g. 10:15 AM)
+  const formatOrderTime = (dateString) => {
+    if (!dateString) return '';
+    let dStr = typeof dateString === 'string' ? dateString : dateString.toString();
+    if (!dStr.includes('Z') && !dStr.includes('+')) {
+      dStr = dStr.replace(' ', 'T') + 'Z';
+    }
+    const d = new Date(dStr);
+    const validDate = isNaN(d.getTime()) ? new Date(dateString) : d;
+    if (isNaN(validDate.getTime())) return '';
+    return validDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+  };
+
+  // Helper to safely resolve customer name and phone
+  const getCustomerDetails = (order) => {
+    let name = (order?.customer_name || '').trim();
+    let phone = (order?.customer_phone || '').trim();
+
+    let deliveryObj = null;
+    if (order?.delivery_address) {
+      if (typeof order.delivery_address === 'string') {
+        try {
+          deliveryObj = JSON.parse(order.delivery_address);
+        } catch (e) {
+          deliveryObj = null;
+        }
+      } else if (typeof order.delivery_address === 'object') {
+        deliveryObj = order.delivery_address;
+      }
+    }
+
+    if (deliveryObj) {
+      if (!name || name === 'Guest' || name === phone) {
+        const addrName = deliveryObj.contact_name || deliveryObj.name;
+        if (addrName) name = addrName.trim();
+      }
+      if (!phone) {
+        const addrPhone = deliveryObj.contact_phone || deliveryObj.phone;
+        if (addrPhone) phone = addrPhone.trim();
+      }
+    }
+
+    if (!name || name === 'None') {
+      if (phone) {
+        name = 'Customer';
+      } else if (order?.table_number && !isTakeaway(order) && !isDelivery(order)) {
+        name = `Table ${order.table_number}`;
+      } else {
+        name = isTakeaway(order) ? 'Takeaway Guest' : isDelivery(order) ? 'Delivery Guest' : 'Guest';
+      }
+    }
+
+    return { name, phone };
+  };
+
   // Helper to format time ago
   const timeAgo = (dateString) => {
     if (!dateString) return 'Just now';
@@ -257,7 +313,20 @@ const OrdersManagement = () => {
   };
 
   const currentColumns = orderMode === 'TAKEAWAY' ? TAKEAWAY_COLUMNS : orderMode === 'DELIVERY' ? DELIVERY_COLUMNS : DINE_IN_COLUMNS;
-  const filteredOrders = orders.filter(order => orderMode === 'TAKEAWAY' ? isTakeaway(order) : orderMode === 'DELIVERY' ? isDelivery(order) : isDineIn(order));
+  const filteredOrders = orders.filter(order => {
+    const matchesMode = orderMode === 'TAKEAWAY' ? isTakeaway(order) : orderMode === 'DELIVERY' ? isDelivery(order) : isDineIn(order);
+    if (!matchesMode) return false;
+
+    if (!searchTerm.trim()) return true;
+    const term = searchTerm.toLowerCase().trim();
+    const orderIdStr = (order.order_id || '').toString().toLowerCase();
+    const cust = getCustomerDetails(order);
+    const nameMatch = cust.name.toLowerCase().includes(term);
+    const phoneMatch = cust.phone.toLowerCase().includes(term);
+    const itemsMatch = order.items && order.items.some(i => (i.name || '').toLowerCase().includes(term));
+    const tableMatch = (order.table_number || '').toString().toLowerCase().includes(term);
+    return orderIdStr.includes(term) || nameMatch || phoneMatch || itemsMatch || tableMatch;
+  });
   const activeDineInOrdersCount = orders.filter(o => isDineIn(o) && o.status !== 'SERVED').length;
   const activeTakeawayOrdersCount = orders.filter(o => isTakeaway(o) && o.status !== 'SERVED').length;
   const activeDeliveryOrdersCount = orders.filter(o => isDelivery(o) && o.status !== 'SERVED').length;
@@ -321,6 +390,50 @@ const OrdersManagement = () => {
             <Bell size={15} className={ringingInfo.isRinging ? 'animate-bounce' : ''} />
             {ringingInfo.isRinging ? `Ringing (${ringingInfo.remainingCount})...` : 'Test Loud Ring (3s)'}
           </button>
+
+          {/* Desktop Search input */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            background: 'var(--surface)',
+            border: '1px solid rgba(0,0,0,0.12)',
+            borderRadius: '24px',
+            padding: '6px 14px',
+            gap: '8px',
+            minWidth: '240px',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+          }}>
+            <Search size={15} color="#94a3b8" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search ID, Customer, Phone..."
+              style={{
+                border: 'none',
+                outline: 'none',
+                background: 'transparent',
+                fontSize: '13px',
+                width: '100%',
+                color: 'var(--text-dark)'
+              }}
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  color: '#94a3b8',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                  padding: '0 2px'
+                }}
+              >
+                ✕
+              </button>
+            )}
+          </div>
 
           <div style={{ 
             background: 'var(--surface)', 
@@ -447,7 +560,21 @@ const OrdersManagement = () => {
         <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', marginTop: '16px', alignItems: 'center' }}>
           <div style={{ flex: 1, background: 'white', borderRadius: '24px', display: 'flex', alignItems: 'center', padding: '10px 16px', border: '1px solid #eee' }}>
             <Search size={16} color="#aaa" />
-            <input type="text" placeholder="Search Order ID..." style={{ border: 'none', outline: 'none', marginLeft: '8px', fontSize: '13px', width: '100%' }} />
+            <input 
+              type="text" 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search Order ID, Customer, Phone..." 
+              style={{ border: 'none', outline: 'none', marginLeft: '8px', fontSize: '13px', width: '100%' }} 
+            />
+            {searchTerm && (
+              <button 
+                onClick={() => setSearchTerm('')} 
+                style={{ border: 'none', background: 'transparent', color: '#999', fontSize: '13px', cursor: 'pointer', padding: '0 4px' }}
+              >
+                ✕
+              </button>
+            )}
           </div>
           <button
             onClick={() => {
@@ -522,38 +649,129 @@ const OrdersManagement = () => {
             return o.status === activeMobileTab;
           }).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).map(order => {
             const paymentInfo = getPaymentDisplayInfo(order);
+            const customerDetails = getCustomerDetails(order);
             return (
             <div key={order.order_id} style={{ 
               background: paymentInfo.cardBg, 
-              borderRadius: '12px', 
-              padding: '12px', 
+              borderRadius: '16px', 
+              padding: '14px', 
               border: paymentInfo.cardBorder, 
               borderLeft: paymentInfo.borderLeft,
               boxShadow: paymentInfo.boxShadow,
               display: 'flex', 
               flexDirection: 'column', 
-              minWidth: 0 
+              minWidth: 0,
+              marginBottom: '12px'
             }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <span style={{ color: paymentInfo.orderIdColor, fontWeight: '800', fontSize: '13px' }}>#{order.order_id}</span>
-                <span style={{ background: '#f5f5f5', color: '#888', padding: '4px 8px', borderRadius: '8px', fontSize: '10px', fontWeight: '700' }}>{timeAgo(order.created_at)}</span>
+              {/* Header row: Order ID + Payment badge on left, Exact Placed Time & Ago on right */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <span style={{ color: paymentInfo.orderIdColor, fontWeight: '800', fontSize: '15px' }}>#{order.order_id}</span>
+                  <span style={{
+                    fontSize: '10px',
+                    fontWeight: '700',
+                    padding: '3px 8px',
+                    borderRadius: '12px',
+                    background: paymentInfo.badgeBg,
+                    color: paymentInfo.badgeColor,
+                    border: paymentInfo.badgeBorder,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}>
+                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: paymentInfo.themeColor }} />
+                    {paymentInfo.badgeText}
+                  </span>
+                </div>
+                
+                {/* Placed Time & Relative Elapsed Time */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px', flexShrink: 0 }}>
+                  <span style={{ 
+                    background: 'white', 
+                    color: '#0f172a', 
+                    border: '1px solid rgba(0,0,0,0.1)',
+                    padding: '2px 8px', 
+                    borderRadius: '8px', 
+                    fontSize: '11px', 
+                    fontWeight: '800',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+                    whiteSpace: 'nowrap'
+                  }} title={`Ordered at ${formatOrderTime(order.created_at)}`}>
+                    <Clock size={11} color="#64748b" />
+                    {formatOrderTime(order.created_at) || 'Just now'}
+                  </span>
+                  <span style={{ fontSize: '10px', color: '#64748b', fontWeight: '600' }}>
+                    {timeAgo(order.created_at)}
+                  </span>
+                </div>
               </div>
-              <div style={{ marginBottom: '8px' }}>
-                <span style={{
-                  fontSize: '10px',
-                  fontWeight: '700',
-                  padding: '2px 6px',
-                  borderRadius: '10px',
-                  background: paymentInfo.badgeBg,
-                  color: paymentInfo.badgeColor,
-                  border: paymentInfo.badgeBorder,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '4px'
-                }}>
-                  <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: paymentInfo.themeColor }} />
-                  {paymentInfo.badgeText}
-                </span>
+
+              {/* Customer Name & Phone Number */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '8px',
+                background: 'rgba(255, 255, 255, 0.85)',
+                border: '1px solid rgba(0, 0, 0, 0.08)',
+                padding: '6px 10px',
+                borderRadius: '10px',
+                marginBottom: '10px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, flex: 1 }}>
+                  <div style={{
+                    width: '22px',
+                    height: '22px',
+                    borderRadius: '50%',
+                    background: '#e0f2fe',
+                    color: '#0284c7',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0
+                  }}>
+                    <User size={12} />
+                  </div>
+                  <span style={{ 
+                    fontSize: '12px', 
+                    fontWeight: '800', 
+                    color: '#1e293b', 
+                    overflow: 'hidden', 
+                    textOverflow: 'ellipsis', 
+                    whiteSpace: 'nowrap' 
+                  }}>
+                    {customerDetails.name}
+                  </span>
+                </div>
+
+                {customerDetails.phone && customerDetails.phone !== '-' && (
+                  <a
+                    href={`tel:${customerDetails.phone}`}
+                    onClick={(e) => e.stopPropagation()}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      padding: '3px 8px',
+                      borderRadius: '12px',
+                      background: '#fff7ed',
+                      border: '1px solid #fed7aa',
+                      color: '#c2410c',
+                      fontSize: '11px',
+                      fontWeight: '700',
+                      textDecoration: 'none',
+                      flexShrink: 0,
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.04)'
+                    }}
+                    title="Call Customer"
+                  >
+                    <Phone size={10} />
+                    <span>{customerDetails.phone}</span>
+                  </a>
+                )}
               </div>
               <div style={{ fontSize: '12px', fontWeight: '600', color: '#111', marginBottom: '12px', lineHeight: '1.5', flex: 1 }}>
                 {order.items?.map(i => `${i.name} x${i.quantity}`).join(', ')}
@@ -724,13 +942,13 @@ const OrdersManagement = () => {
                       e.currentTarget.style.boxShadow = paymentInfo.boxShadow;
                     }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                         <span style={{ fontWeight: '800', fontSize: '15px', color: paymentInfo.orderIdColor }}>#{order.order_id}</span>
                         <span style={{
                           fontSize: '11px',
                           fontWeight: '700',
-                          padding: '2px 8px',
+                          padding: '3px 8px',
                           borderRadius: '12px',
                           background: paymentInfo.badgeBg,
                           color: paymentInfo.badgeColor,
@@ -743,17 +961,101 @@ const OrdersManagement = () => {
                           {paymentInfo.badgeText}
                         </span>
                       </div>
-                      <span style={{ 
-                        fontSize: '11px', 
-                        background: 'rgba(0,0,0,0.05)', 
-                        padding: '4px 10px', 
-                        borderRadius: '16px',
-                        color: 'var(--text-secondary)',
-                        fontWeight: '600'
-                      }}>
-                        {timeAgo(order.created_at)}
-                      </span>
+
+                      {/* Placed Time & Relative Elapsed Time */}
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px', flexShrink: 0 }}>
+                        <span style={{ 
+                          fontSize: '11px', 
+                          background: 'white', 
+                          border: '1px solid rgba(0,0,0,0.1)', 
+                          padding: '2px 8px', 
+                          borderRadius: '8px',
+                          color: '#0f172a',
+                          fontWeight: '800',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+                          whiteSpace: 'nowrap'
+                        }} title={`Ordered at ${formatOrderTime(order.created_at)}`}>
+                          <Clock size={11} color="#64748b" />
+                          {formatOrderTime(order.created_at) || 'Just now'}
+                        </span>
+                        <span style={{ fontSize: '10px', color: '#64748b', fontWeight: '600' }}>
+                          {timeAgo(order.created_at)}
+                        </span>
+                      </div>
                     </div>
+
+                    {/* Customer Name & Phone Number */}
+                    {(() => {
+                      const cust = getCustomerDetails(order);
+                      return (
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: '8px',
+                          background: 'rgba(255, 255, 255, 0.85)',
+                          border: '1px solid rgba(0, 0, 0, 0.08)',
+                          padding: '6px 12px',
+                          borderRadius: '10px',
+                          marginBottom: '14px'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, flex: 1 }}>
+                            <div style={{
+                              width: '22px',
+                              height: '22px',
+                              borderRadius: '50%',
+                              background: '#e0f2fe',
+                              color: '#0284c7',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0
+                            }}>
+                              <User size={12} />
+                            </div>
+                            <span style={{ 
+                              fontSize: '12px', 
+                              fontWeight: '800', 
+                              color: '#1e293b', 
+                              overflow: 'hidden', 
+                              textOverflow: 'ellipsis', 
+                              whiteSpace: 'nowrap' 
+                            }}>
+                              {cust.name}
+                            </span>
+                          </div>
+
+                          {cust.phone && cust.phone !== '-' && (
+                            <a
+                              href={`tel:${cust.phone}`}
+                              onClick={(e) => e.stopPropagation()}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                padding: '3px 8px',
+                                borderRadius: '12px',
+                                background: '#fff7ed',
+                                border: '1px solid #fed7aa',
+                                color: '#c2410c',
+                                fontSize: '11px',
+                                fontWeight: '700',
+                                textDecoration: 'none',
+                                flexShrink: 0,
+                                boxShadow: '0 1px 2px rgba(0,0,0,0.04)'
+                              }}
+                              title="Call Customer"
+                            >
+                              <Phone size={10} />
+                              <span>{cust.phone}</span>
+                            </a>
+                          )}
+                        </div>
+                      );
+                    })()}
 
                     <div style={{ 
                       fontSize: '13px', 
@@ -897,6 +1199,16 @@ const OrdersManagement = () => {
               <span>Time</span>
               <span>{new Date(selectedKOTOrder.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
             </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px', fontWeight: '600' }}>
+              <span>Customer</span>
+              <span>{getCustomerDetails(selectedKOTOrder).name}</span>
+            </div>
+            {getCustomerDetails(selectedKOTOrder).phone && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px', fontWeight: '600' }}>
+                <span>Phone</span>
+                <span>{getCustomerDetails(selectedKOTOrder).phone}</span>
+              </div>
+            )}
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px', fontWeight: '600' }}>
               <span>Table</span>
               <span>{isDelivery(selectedKOTOrder) ? 'Delivery' : isTakeaway(selectedKOTOrder) ? 'Takeaway' : `T${selectedKOTOrder.table_number.toString().padStart(2, '0')}`}</span>
