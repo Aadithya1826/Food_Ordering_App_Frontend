@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Clock, ChefHat, CheckCircle2, Truck, Search, SlidersHorizontal } from 'lucide-react';
+import { Clock, ChefHat, CheckCircle2, Truck, Search, SlidersHorizontal, Bell, BellOff, Volume2 } from 'lucide-react';
 import { orderService } from '../services/api';
+import { kotAudio, ringKOTOrders, stopKOTRinging, unlockKOTAudio } from '../utils/kotAudio';
 
 const DINE_IN_COLUMNS = [
   { id: 'PENDING', title: 'New Orders', icon: Clock, color: '#ff8c42', bg: 'rgba(255, 140, 66, 0.1)', iconBg: '#ff8c42', defaultBg: '#fff' },
@@ -29,37 +30,29 @@ const OrdersManagement = () => {
   const [activeMobileTab, setActiveMobileTab] = useState('PENDING');
   const [selectedKOTOrder, setSelectedKOTOrder] = useState(null);
   const [orderMode, setOrderMode] = useState('DINE_IN'); // 'DINE_IN' | 'TAKEAWAY'
-  const prevMaxOrderIdRef = useRef(null);
+  const [ringingInfo, setRingingInfo] = useState({ isRinging: false, remainingCount: 0 });
+  const knownOrderIdsRef = useRef(null);
 
-  const playNotificationSound = () => {
-    try {
-      const AudioContext = window.AudioContext || window.webkitAudioContext;
-      if (AudioContext) {
-        const ctx = new AudioContext();
-        const playNote = (freq, startTime, duration) => {
-          const osc = ctx.createOscillator();
-          const gain = ctx.createGain();
-          osc.connect(gain);
-          gain.connect(ctx.destination);
-          osc.type = 'sine';
-          osc.frequency.value = freq;
-          gain.gain.setValueAtTime(0, startTime);
-          gain.gain.linearRampToValueAtTime(0.5, startTime + 0.05);
-          gain.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
-          osc.start(startTime);
-          osc.stop(startTime + duration);
-        };
-        const now = ctx.currentTime;
-        playNote(523.25, now, 0.4); // C5
-        playNote(659.25, now + 0.15, 0.6); // E5
-      }
-      if (navigator.vibrate) {
-        navigator.vibrate([200, 100, 200]);
-      }
-    } catch (e) {
-      console.log('Audio playback failed', e);
-    }
-  };
+  // Subscribe to KOT audio controller state
+  useEffect(() => {
+    const unsubscribe = kotAudio.subscribe((state) => {
+      setRingingInfo(state);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Unlock AudioContext on first user interaction with the page
+  useEffect(() => {
+    const handleInteraction = () => {
+      unlockKOTAudio();
+    };
+    window.addEventListener('click', handleInteraction, { once: true });
+    window.addEventListener('touchstart', handleInteraction, { once: true });
+    return () => {
+      window.removeEventListener('click', handleInteraction);
+      window.removeEventListener('touchstart', handleInteraction);
+    };
+  }, []);
 
   const isDelivery = (order) => {
     return order.order_type?.toLowerCase() === 'delivery';
@@ -141,7 +134,7 @@ const OrdersManagement = () => {
   };
   useEffect(() => {
     fetchOrders();
-    const interval = setInterval(fetchOrders, 10000); // Polling every 10s
+    const interval = setInterval(fetchOrders, 4000); // Polling every 4s for rapid KOT order alerts
 
     const handleVoiceNav = (e) => {
       if (e.detail && e.detail.tab) {
@@ -170,15 +163,27 @@ const OrdersManagement = () => {
       const currentOrders = Array.isArray(data) ? data : [];
       
       if (currentOrders.length > 0) {
-        const currentMaxId = Math.max(...currentOrders.map(o => o.order_id));
-        
-        if (prevMaxOrderIdRef.current !== null && currentMaxId > prevMaxOrderIdRef.current) {
-          playNotificationSound();
+        const currentIds = currentOrders.map(o => o.order_id || o.id);
+
+        if (knownOrderIdsRef.current === null) {
+          // Initial mount: record all existing orders so we only alert for NEW incoming orders
+          knownOrderIdsRef.current = new Set(currentIds);
+        } else {
+          // Identify newly arrived orders
+          const newOrders = currentOrders.filter(o => !knownOrderIdsRef.current.has(o.order_id || o.id));
+          const newOrdersCount = newOrders.length;
+
+          if (newOrdersCount > 0) {
+            // Register all new orders as known
+            newOrders.forEach(o => knownOrderIdsRef.current.add(o.order_id || o.id));
+
+            // Ring louder: 3 sec per order, repeated for as many orders arrived!
+            // (e.g. if simultaneously two orders placed, it will ring 2 times as 3sec ring)
+            ringKOTOrders(newOrdersCount);
+          }
         }
-        
-        if (prevMaxOrderIdRef.current === null || currentMaxId > prevMaxOrderIdRef.current) {
-          prevMaxOrderIdRef.current = currentMaxId;
-        }
+      } else if (knownOrderIdsRef.current === null) {
+        knownOrderIdsRef.current = new Set();
       }
       
       setOrders(currentOrders);
@@ -291,6 +296,32 @@ const OrdersManagement = () => {
             </span>
           </div>
 
+          <button
+            onClick={() => {
+              unlockKOTAudio();
+              ringKOTOrders(1);
+            }}
+            title="Test KOT 3-Second Loud Ringing Alert"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '8px 16px',
+              borderRadius: '24px',
+              border: ringingInfo.isRinging ? '1px solid #ef4444' : '1px solid #fed7aa',
+              background: ringingInfo.isRinging ? '#fef2f2' : '#fff7ed',
+              color: ringingInfo.isRinging ? '#dc2626' : '#ea580c',
+              fontSize: '13px',
+              fontWeight: '700',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              boxShadow: '0 2px 8px rgba(234, 88, 12, 0.08)'
+            }}
+          >
+            <Bell size={15} className={ringingInfo.isRinging ? 'animate-bounce' : ''} />
+            {ringingInfo.isRinging ? `Ringing (${ringingInfo.remainingCount})...` : 'Test Loud Ring (3s)'}
+          </button>
+
           <div style={{ 
             background: 'var(--surface)', 
             border: '1px solid rgba(0,0,0,0.08)',
@@ -308,6 +339,60 @@ const OrdersManagement = () => {
           </div>
         </div>
       </div>
+
+      {/* Active Loud Ringing Banner Alert */}
+      {ringingInfo.isRinging && (
+        <div style={{
+          background: 'linear-gradient(90deg, #dc2626 0%, #ea580c 100%)',
+          color: 'white',
+          padding: '12px 20px',
+          borderRadius: '16px',
+          marginBottom: '16px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '12px',
+          boxShadow: '0 8px 24px rgba(220, 38, 38, 0.35)',
+          animation: 'ring-pulse 1s infinite alternate'
+        }}>
+          <style>{`
+            @keyframes ring-pulse {
+              0% { transform: scale(1); opacity: 1; }
+              100% { transform: scale(1.01); opacity: 0.95; }
+            }
+          `}</style>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span style={{ fontSize: '24px' }}>🔔</span>
+            <div>
+              <div style={{ fontWeight: '800', fontSize: '15px', letterSpacing: '0.3px', textTransform: 'uppercase' }}>
+                New KOT Order Received — Loud Ring Active!
+              </div>
+              <div style={{ fontSize: '12px', opacity: 0.95 }}>
+                Ringing 3-second loud bell ({ringingInfo.remainingCount} ring cycle{ringingInfo.remainingCount > 1 ? 's' : ''} remaining)
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={() => stopKOTRinging()}
+            style={{
+              background: 'white',
+              color: '#dc2626',
+              border: 'none',
+              padding: '8px 16px',
+              borderRadius: '20px',
+              fontWeight: '800',
+              fontSize: '12px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
+            }}
+          >
+            <BellOff size={14} /> Stop Alarm
+          </button>
+        </div>
+      )}
 
       {/* Toggle View */}
       <style>{`
@@ -359,14 +444,35 @@ const OrdersManagement = () => {
 
       {/* Mobile Header, Search, Tabs, and Grid */}
       <div className="mobile-only-orders" style={{ width: '100%', minWidth: 0, maxWidth: '100%' }}>
-        <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', marginTop: '16px' }}>
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', marginTop: '16px', alignItems: 'center' }}>
           <div style={{ flex: 1, background: 'white', borderRadius: '24px', display: 'flex', alignItems: 'center', padding: '10px 16px', border: '1px solid #eee' }}>
             <Search size={16} color="#aaa" />
             <input type="text" placeholder="Search Order ID..." style={{ border: 'none', outline: 'none', marginLeft: '8px', fontSize: '13px', width: '100%' }} />
           </div>
-          <div style={{ width: '40px', height: '40px', background: 'white', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #eee' }}>
-            <SlidersHorizontal size={16} color="#111" />
-          </div>
+          <button
+            onClick={() => {
+              unlockKOTAudio();
+              ringKOTOrders(1);
+            }}
+            title="Test KOT 3s Loud Ring"
+            style={{
+              padding: '10px 14px',
+              background: ringingInfo.isRinging ? '#fef2f2' : '#fff7ed',
+              color: ringingInfo.isRinging ? '#dc2626' : '#ea580c',
+              border: ringingInfo.isRinging ? '1px solid #ef4444' : '1px solid #fed7aa',
+              borderRadius: '24px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '12px',
+              fontWeight: '700',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            <Bell size={14} className={ringingInfo.isRinging ? 'animate-bounce' : ''} />
+            {ringingInfo.isRinging ? 'Ringing...' : 'Test 3s'}
+          </button>
         </div>
 
         <div style={{ 
