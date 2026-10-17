@@ -20,6 +20,7 @@ import {
   ClipboardList,
   CalendarDays,
   Smartphone,
+  Database,
 } from 'lucide-react';
 import DataudipiTitle from '../assets/Dataudupi-Title.png';
 import ChefMascot from '../assets/chef_mascot.png';
@@ -37,6 +38,7 @@ import PaymentManagement from '../components/PaymentManagement';
 import ReportsManagement from '../components/ReportsManagement';
 import SettingsManagement from '../components/SettingsManagement';
 import ConsumptionReports from '../components/ConsumptionReports';
+import DataManagement from '../components/DataManagement';
 import VoiceWidget from '../components/VoiceWidget';
 
 const HotelManagerDashboard = () => {
@@ -152,6 +154,7 @@ const HotelManagerDashboard = () => {
     { id: 'inventory', label: 'Inventory', icon: Package },
     { id: 'payments', label: 'Payments', icon: CreditCard },
     { id: 'reports', label: 'Reports', icon: TrendingUp },
+    { id: 'data_management', label: 'Data Management', icon: Database },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
@@ -373,6 +376,19 @@ const HotelManagerDashboard = () => {
             </div>
           )}
 
+          {activePage === 'data_management' && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%' }}>
+              <div>
+                <h2 style={{ margin: '0 0 6px', fontSize: '22px', fontWeight: '700', color: '#fff' }}>
+                  Data Management
+                </h2>
+                <p style={{ margin: 0, fontSize: '13px', color: '#999' }}>
+                  Permanent historical sales cleanup & storage management
+                </p>
+              </div>
+            </div>
+          )}
+
           {activePage === 'settings' && (
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%' }}>
               <div>
@@ -580,6 +596,10 @@ const HotelManagerDashboard = () => {
             <ReportsManagement />
           )}
 
+          {activePage === 'data_management' && (
+            <DataManagement />
+          )}
+
           {activePage === 'settings' && (
             <SettingsManagement />
           )}
@@ -686,7 +706,7 @@ const HotelManagerDashboard = () => {
           );
         })}
         <button
-          className={['cashier_sales', 'mobile_sales', 'total_sales', 'orders', 'tables', 'inventory', 'payments', 'reports', 'settings'].includes(activePage) ? 'active' : ''}
+          className={['cashier_sales', 'mobile_sales', 'total_sales', 'orders', 'tables', 'inventory', 'payments', 'reports', 'data_management', 'settings'].includes(activePage) ? 'active' : ''}
           onClick={() => setIsMoreMenuOpen(!isMoreMenuOpen)}
         >
           <Menu size={22} />
@@ -695,7 +715,7 @@ const HotelManagerDashboard = () => {
       </div>
 
       <VoiceWidget onNavigate={(page, subtab) => {
-        if (['dashboard', 'menu', 'catering_menu', 'catering_orders', 'cashier_sales', 'mobile_sales', 'total_sales', 'orders', 'tables', 'inventory', 'payments', 'reports', 'settings'].includes(page)) {
+        if (['dashboard', 'menu', 'catering_menu', 'catering_orders', 'cashier_sales', 'mobile_sales', 'total_sales', 'orders', 'tables', 'inventory', 'payments', 'reports', 'data_management', 'settings'].includes(page)) {
           setActivePage(page);
         }
         if (subtab) {

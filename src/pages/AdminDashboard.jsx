@@ -26,6 +26,7 @@ import {
 import VoiceWidget from '../components/VoiceWidget';
 import AddressAutocomplete from '../components/AddressAutocomplete';
 import DataudipiTitle from '../assets/Dataudupi-Title.png';
+import DataManagement from '../components/DataManagement';
 import { restaurantService, tableService, reportsService, managerService } from '../services/api';
 import {
   BarChart,
@@ -114,6 +115,7 @@ const AdminDashboard = () => {
     { id: 'hotels', label: 'Hotels', icon: Building2 },
     { id: 'managers', label: 'Managers', icon: Users },
     { id: 'reports', label: 'Reports', icon: BarChart3 },
+    { id: 'data-management', label: 'Data Management', icon: Database },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
@@ -549,11 +551,13 @@ const AdminDashboard = () => {
           <h1>{activePage === 'dashboard' ? 'Dashboard' :
             activePage === 'hotels' ? 'Hotels & Venues' :
               activePage === 'managers' ? 'Managers' :
-                activePage === 'reports' ? 'Reports' : 'Settings'}</h1>
+                activePage === 'reports' ? 'Reports' :
+                  activePage === 'data-management' ? 'Data Management' : 'Settings'}</h1>
           <p>{activePage === 'dashboard' ? 'Platform-wide overview' :
             activePage === 'hotels' ? `${hotels.length} Hotels Registered` :
               activePage === 'managers' ? 'Hotel managers & assignments' :
-                activePage === 'reports' ? 'Performance insights' : 'Accounts & preferences'}</p>
+                activePage === 'reports' ? 'Performance insights' :
+                  activePage === 'data-management' ? 'Historical data cleanup & storage optimization' : 'Accounts & preferences'}</p>
         </div>
 
         {/* Desktop Header */}
@@ -1877,6 +1881,10 @@ const AdminDashboard = () => {
 
               </div>
             </div>
+          )}
+
+          {activePage === 'data-management' && (
+            <DataManagement />
           )}
         </div>
       </div>

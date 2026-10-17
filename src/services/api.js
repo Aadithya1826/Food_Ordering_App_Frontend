@@ -452,5 +452,21 @@ export const cateringAdminService = {
   }
 };
 
+export const dataManagementService = {
+  getPreview: async (month, restaurantId = null) => {
+    const params = { month };
+    if (restaurantId) {
+      params.restaurant_id = restaurantId;
+    }
+    const response = await api.get('/api/v1/admin/data-management/preview', { params });
+    return response.data;
+  },
+
+  executeDeletion: async (payload) => {
+    const response = await api.post('/api/v1/admin/data-management/delete', payload);
+    return response.data;
+  }
+};
+
 export default api;
 
