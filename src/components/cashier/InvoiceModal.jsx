@@ -41,6 +41,7 @@ const InvoiceModal = ({ show, lastBillNo, lastOrderType, lastPaymentMethod, last
           <thead style={{ transform: 'scaleY(1.2)', transformOrigin: 'top' }}>
             <tr>
               <th style={{ textAlign: 'left', paddingBottom: '8px' }}>Item</th>
+              <th style={{ textAlign: 'right', paddingBottom: '8px', paddingRight: '8px' }}>Rate</th>
               <th style={{ textAlign: 'right', paddingBottom: '8px' }}>Qty</th>
               <th style={{ textAlign: 'right', paddingBottom: '8px' }}>Amt</th>
             </tr>
@@ -48,7 +49,7 @@ const InvoiceModal = ({ show, lastBillNo, lastOrderType, lastPaymentMethod, last
           <tbody style={{ transform: 'scaleY(1.2)', transformOrigin: 'top' }}>
             {lastCart.length === 0 ? (
               <tr>
-                <td colSpan="3" style={{ textAlign: 'center', padding: '16px 0', color: '#6b7280', fontStyle: 'italic' }}>
+                <td colSpan="4" style={{ textAlign: 'center', padding: '16px 0', color: '#6b7280', fontStyle: 'italic' }}>
                   No items in bill
                 </td>
               </tr>
@@ -58,6 +59,7 @@ const InvoiceModal = ({ show, lastBillNo, lastOrderType, lastPaymentMethod, last
                   <td style={{ paddingBottom: '8px' }}>
                     <div>{item.description}</div>
                   </td>
+                  <td style={{ textAlign: 'right', paddingBottom: '8px', paddingRight: '8px' }}>{item.rate ? Number(item.rate).toString() : ''}</td>
                   <td style={{ textAlign: 'right', paddingBottom: '8px' }}>{item.qty}</td>
                   <td style={{ textAlign: 'right', paddingBottom: '8px' }}>₹{item.amount.toFixed(2)}</td>
                 </tr>

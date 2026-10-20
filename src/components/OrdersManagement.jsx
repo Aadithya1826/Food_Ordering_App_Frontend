@@ -666,7 +666,7 @@ const OrdersManagement = () => {
               {/* Header row: Order ID + Payment badge on left, Exact Placed Time & Ago on right */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px', gap: '8px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                  <span style={{ color: paymentInfo.orderIdColor, fontWeight: '800', fontSize: '15px' }}>#{order.order_id}</span>
+                  <span style={{ color: paymentInfo.orderIdColor, fontWeight: '800', fontSize: '15px' }}>#{order.branch_order_id || order.order_id}</span>
                   <span style={{
                     fontSize: '10px',
                     fontWeight: '700',
@@ -945,7 +945,7 @@ const OrdersManagement = () => {
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                        <span style={{ fontWeight: '800', fontSize: '15px', color: paymentInfo.orderIdColor }}>#{order.order_id}</span>
+                        <span style={{ fontWeight: '800', fontSize: '15px', color: paymentInfo.orderIdColor }}>#{order.branch_order_id || order.order_id}</span>
                         <span style={{
                           fontSize: '11px',
                           fontWeight: '700',
