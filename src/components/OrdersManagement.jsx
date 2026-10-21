@@ -1241,12 +1241,18 @@ const OrdersManagement = () => {
             <div style={{ borderTop: '1px dashed #aaa', margin: '12px 0' }}></div>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px', fontSize: '14px' }}>
-              {selectedKOTOrder.items && selectedKOTOrder.items.map((item, idx) => (
-                <div key={idx} style={{ display: 'flex', gap: '16px' }}>
-                  <span style={{ width: '32px', fontWeight: 'bold' }}>{item.quantity}</span>
-                  <span style={{ fontWeight: 'bold' }}>{item.item_name?.toUpperCase() || item.name?.toUpperCase() || `ITEM #${item.item_id}`}</span>
-                </div>
-              ))}
+              {selectedKOTOrder.items && selectedKOTOrder.items.map((item, idx) => {
+                const isCancelled = (item.status || '').toUpperCase() === 'CANCELLED';
+                return (
+                  <div key={idx} style={{ display: 'flex', gap: '16px', opacity: isCancelled ? 0.5 : 1 }}>
+                    <span style={{ width: '32px', fontWeight: 'bold', textDecoration: isCancelled ? 'line-through' : 'none' }}>{item.quantity}</span>
+                    <span style={{ fontWeight: 'bold', textDecoration: isCancelled ? 'line-through' : 'none', color: isCancelled ? '#dc2626' : 'inherit' }}>
+                      {item.item_name?.toUpperCase() || item.name?.toUpperCase() || `ITEM #${item.item_id}`}
+                      {isCancelled && <span style={{ marginLeft: '8px', color: '#dc2626', fontSize: '11px', background: '#fee2e2', padding: '2px 6px', borderRadius: '4px' }}>CANCELLED</span>}
+                    </span>
+                  </div>
+                );
+              })}
               {(!selectedKOTOrder.items || selectedKOTOrder.items.length === 0) && (
                 <div style={{ fontStyle: 'italic', color: '#666' }}>No items found</div>
               )}

@@ -46,7 +46,7 @@ api.interceptors.request.use((config) => {
 
   // Inject admin_selected_restaurant for super admin cross-hotel actions
   const adminSelectedRestaurant = localStorage.getItem('admin_selected_restaurant');
-  if (adminSelectedRestaurant) {
+  if (adminSelectedRestaurant && !config._skipRestaurantInjection) {
     if (config.method === 'get' || config.method === 'delete') {
       config.params = { ...config.params, restaurant_id: adminSelectedRestaurant };
     } else if (config.method === 'post' || config.method === 'patch' || config.method === 'put') {
@@ -338,6 +338,49 @@ export const managerService = {
 
   deleteManager: async (managerId) => {
     const response = await api.delete(`/api/v1/managers/${managerId}`);
+    return response.data;
+  },
+};
+
+export const waiterService = {
+  getWaiters: async (restaurantId = null) => {
+    const params = restaurantId && restaurantId !== 'ALL' ? { restaurant_id: restaurantId } : {};
+    const response = await api.get('/api/v1/waiters', {
+      params,
+      _skipRestaurantInjection: true,
+    });
+    return response.data;
+  },
+
+  approveWaiter: async (waiterId, restaurantId) => {
+    const response = await api.patch(`/api/v1/waiters/${waiterId}/approve`, {
+      restaurant_id: parseInt(restaurantId, 10),
+    });
+    return response.data;
+  },
+
+  createWaiter: async ({ name, phone, password, restaurant_id }) => {
+    const regRes = await api.post('/api/v1/auth/waiter/register', {
+      name,
+      phone,
+      password,
+      confirm_password: password,
+    });
+    if (restaurant_id && regRes.data?.waiter_id) {
+      await api.patch(`/api/v1/waiters/${regRes.data.waiter_id}/approve`, {
+        restaurant_id: parseInt(restaurant_id, 10),
+      });
+    }
+    return regRes.data;
+  },
+
+  updateWaiter: async (waiterId, updateData) => {
+    const response = await api.patch(`/api/v1/waiters/${waiterId}`, updateData);
+    return response.data;
+  },
+
+  deleteWaiter: async (waiterId) => {
+    const response = await api.delete(`/api/v1/waiters/${waiterId}`);
     return response.data;
   },
 };

@@ -22,12 +22,17 @@ import {
   Shield,
   Database,
   Save,
+  UserCheck,
+  Phone,
+  CheckCircle2,
+  Clock,
+  RotateCw,
 } from 'lucide-react';
 import VoiceWidget from '../components/VoiceWidget';
 import AddressAutocomplete from '../components/AddressAutocomplete';
 import DataudipiTitle from '../assets/Dataudupi-Title.png';
 import DataManagement from '../components/DataManagement';
-import { restaurantService, tableService, reportsService, managerService } from '../services/api';
+import { restaurantService, tableService, reportsService, managerService, waiterService } from '../services/api';
 import {
   BarChart,
   Bar,
@@ -64,6 +69,22 @@ const AdminDashboard = () => {
   const [newManager, setNewManager] = useState({ name: '', email: '', password: '', restaurant_id: '' });
   const [managerCreateError, setManagerCreateError] = useState(null);
   const [isCreatingManager, setIsCreatingManager] = useState(false);
+
+  // Waiter states
+  const [waiters, setWaiters] = useState([]);
+  const [waitersLoading, setWaitersLoading] = useState(true);
+  const [waitersError, setWaitersError] = useState(null);
+  const [waiterSearch, setWaiterSearch] = useState('');
+  const [waiterHotelFilter, setWaiterHotelFilter] = useState('ALL');
+  const [selectedApprovalHotels, setSelectedApprovalHotels] = useState({});
+  const [approvingWaiterId, setApprovingWaiterId] = useState(null);
+  const [showAddWaiter, setShowAddWaiter] = useState(false);
+  const [newWaiter, setNewWaiter] = useState({ name: '', phone: '', password: '', restaurant_id: '' });
+  const [waiterCreateError, setWaiterCreateError] = useState(null);
+  const [isCreatingWaiter, setIsCreatingWaiter] = useState(false);
+  const [editingWaiter, setEditingWaiter] = useState(null);
+  const [showEditWaiter, setShowEditWaiter] = useState(false);
+  const [isSavingWaiter, setIsSavingWaiter] = useState(false);
 
   const [reports, setReports] = useState(null);
   const [reportsLoading, setReportsLoading] = useState(true);
@@ -114,6 +135,12 @@ const AdminDashboard = () => {
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'hotels', label: 'Hotels', icon: Building2 },
     { id: 'managers', label: 'Managers', icon: Users },
+    {
+      id: 'waiters',
+      label: 'Waiters',
+      icon: UserCheck,
+      badge: waiters.filter((w) => !w.is_approved || !w.restaurant_id).length,
+    },
     { id: 'reports', label: 'Reports', icon: BarChart3 },
     { id: 'data-management', label: 'Data Management', icon: Database },
     { id: 'settings', label: 'Settings', icon: Settings },
@@ -159,9 +186,24 @@ const AdminDashboard = () => {
       }
     };
 
+    const fetchWaitersData = async () => {
+      try {
+        setWaitersLoading(true);
+        const response = await waiterService.getWaiters();
+        setWaiters(Array.isArray(response) ? response : []);
+        setWaitersError(null);
+      } catch (error) {
+        console.error('Error fetching waiters:', error);
+        setWaitersError('Unable to load waiters.');
+      } finally {
+        setWaitersLoading(false);
+      }
+    };
+
     fetchTables();
     fetchHotels();
     fetchManagers();
+    fetchWaitersData();
 
     const fetchReports = async () => {
       try {
@@ -177,6 +219,9 @@ const AdminDashboard = () => {
 
     if (['dashboard', 'reports'].includes(activePage)) {
       fetchReports();
+    }
+    if (activePage === 'waiters') {
+      fetchWaitersData();
     }
   }, [activePage]);
 
@@ -487,6 +532,126 @@ const AdminDashboard = () => {
     }
   };
 
+  // Waiter action handlers
+  const fetchWaiters = async () => {
+    try {
+      setWaitersLoading(true);
+      const response = await waiterService.getWaiters();
+      setWaiters(Array.isArray(response) ? response : []);
+      setWaitersError(null);
+    } catch (error) {
+      console.error('Error fetching waiters:', error);
+      setWaitersError('Unable to load waiters.');
+    } finally {
+      setWaitersLoading(false);
+    }
+  };
+
+  const handleApproveWaiter = async (waiterId) => {
+    const hotelId = selectedApprovalHotels[waiterId];
+    if (!hotelId) {
+      alert('Please select a hotel to assign to this waiter.');
+      return;
+    }
+
+    try {
+      setApprovingWaiterId(waiterId);
+      await waiterService.approveWaiter(waiterId, hotelId);
+      await fetchWaiters();
+    } catch (error) {
+      console.error('Error approving waiter:', error);
+      alert(error.response?.data?.detail || 'Unable to approve waiter.');
+    } finally {
+      setApprovingWaiterId(null);
+    }
+  };
+
+  const handleToggleWaiterStatus = async (waiter) => {
+    try {
+      await waiterService.updateWaiter(waiter.id, { is_active: !waiter.is_active });
+      setWaiters((prev) =>
+        prev.map((w) => (w.id === waiter.id ? { ...w, is_active: !w.is_active } : w))
+      );
+    } catch (error) {
+      console.error('Error toggling waiter status:', error);
+      alert(error.response?.data?.detail || 'Unable to update waiter status.');
+    }
+  };
+
+  const handleCreateWaiter = async (e) => {
+    e.preventDefault();
+    setWaiterCreateError(null);
+    if (!newWaiter.name.trim() || !newWaiter.phone.trim() || !newWaiter.password.trim() || !newWaiter.restaurant_id) {
+      setWaiterCreateError('All fields (Name, Phone, Password, Hotel) are required.');
+      return;
+    }
+
+    try {
+      setIsCreatingWaiter(true);
+      await waiterService.createWaiter({
+        name: newWaiter.name.trim(),
+        phone: newWaiter.phone.trim(),
+        password: newWaiter.password,
+        restaurant_id: parseInt(newWaiter.restaurant_id, 10),
+      });
+      await fetchWaiters();
+      setShowAddWaiter(false);
+      setNewWaiter({ name: '', phone: '', password: '', restaurant_id: '' });
+    } catch (error) {
+      console.error('Error creating waiter:', error);
+      setWaiterCreateError(error.response?.data?.detail || 'Unable to create waiter.');
+    } finally {
+      setIsCreatingWaiter(false);
+    }
+  };
+
+  const handleUpdateWaiter = async (e) => {
+    e.preventDefault();
+    if (!editingWaiter?.name?.trim()) return;
+
+    try {
+      setIsSavingWaiter(true);
+      await waiterService.updateWaiter(editingWaiter.id, {
+        name: editingWaiter.name.trim(),
+        restaurant_id: editingWaiter.restaurant_id ? parseInt(editingWaiter.restaurant_id, 10) : null,
+        is_active: editingWaiter.is_active,
+      });
+      await fetchWaiters();
+      setShowEditWaiter(false);
+      setEditingWaiter(null);
+    } catch (error) {
+      console.error('Error updating waiter:', error);
+      alert(error.response?.data?.detail || 'Unable to update waiter.');
+    } finally {
+      setIsSavingWaiter(false);
+    }
+  };
+
+  const handleDeleteWaiter = async (waiterId, e) => {
+    e?.stopPropagation?.();
+    if (!window.confirm('Are you sure you want to remove this waiter? This cannot be undone.')) return;
+
+    try {
+      await waiterService.deleteWaiter(waiterId);
+      setWaiters((prev) => prev.filter((w) => w.id !== waiterId));
+    } catch (error) {
+      console.error('Error deleting waiter:', error);
+      alert(error.response?.data?.detail || 'Unable to delete waiter.');
+    }
+  };
+
+  const pendingWaiters = waiters.filter((w) => !w.is_approved || !w.restaurant_id);
+  const approvedWaiters = waiters.filter((w) => w.is_approved && w.restaurant_id);
+  const filteredApprovedWaiters = approvedWaiters.filter((w) => {
+    const q = waiterSearch.toLowerCase();
+    const matchesSearch =
+      (w.name || '').toLowerCase().includes(q) ||
+      (w.phone || '').includes(q) ||
+      (w.restaurant_name || '').toLowerCase().includes(q);
+    const matchesHotel = waiterHotelFilter === 'ALL' || String(w.restaurant_id) === String(waiterHotelFilter);
+    return matchesSearch && matchesHotel;
+  });
+
   return (
     <div className={`admin-shell ${sidebarOpen ? 'sidebar-open' : 'sidebar-collapsed'}`}>
       {/* Sidebar */}
@@ -514,11 +679,32 @@ const AdminDashboard = () => {
                 key={item.id}
                 onClick={() => setActivePage(item.id)}
                 className={`sidebar-menu-button ${activePage === item.id ? 'active' : ''}`}
+                style={{ position: 'relative' }}
               >
                 <span className="sidebar-menu-icon">
                   <Icon size={18} />
                 </span>
                 {sidebarOpen && <span>{item.label}</span>}
+                {item.badge > 0 && (
+                  <span
+                    style={{
+                      marginLeft: sidebarOpen ? 'auto' : 0,
+                      position: sidebarOpen ? 'static' : 'absolute',
+                      top: sidebarOpen ? 'auto' : '6px',
+                      right: sidebarOpen ? 'auto' : '6px',
+                      background: '#ff6b35',
+                      color: 'white',
+                      fontSize: '11px',
+                      fontWeight: '700',
+                      padding: '2px 7px',
+                      borderRadius: '10px',
+                      lineHeight: '1',
+                    }}
+                    title={`${item.badge} pending approvals`}
+                  >
+                    {item.badge}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -551,13 +737,15 @@ const AdminDashboard = () => {
           <h1>{activePage === 'dashboard' ? 'Dashboard' :
             activePage === 'hotels' ? 'Hotels & Venues' :
               activePage === 'managers' ? 'Managers' :
-                activePage === 'reports' ? 'Reports' :
-                  activePage === 'data-management' ? 'Data Management' : 'Settings'}</h1>
+                activePage === 'waiters' ? 'Waiters & Staff' :
+                  activePage === 'reports' ? 'Reports' :
+                    activePage === 'data-management' ? 'Data Management' : 'Settings'}</h1>
           <p>{activePage === 'dashboard' ? 'Platform-wide overview' :
             activePage === 'hotels' ? `${hotels.length} Hotels Registered` :
               activePage === 'managers' ? 'Hotel managers & assignments' :
-                activePage === 'reports' ? 'Performance insights' :
-                  activePage === 'data-management' ? 'Historical data cleanup & storage optimization' : 'Accounts & preferences'}</p>
+                activePage === 'waiters' ? 'Floor staff, approval & hotel assignments' :
+                  activePage === 'reports' ? 'Performance insights' :
+                    activePage === 'data-management' ? 'Historical data cleanup & storage optimization' : 'Accounts & preferences'}</p>
         </div>
 
         {/* Desktop Header */}
@@ -1517,6 +1705,688 @@ const AdminDashboard = () => {
             </div>
           )}
 
+          {activePage === 'waiters' && (
+            <div className="admin-page-mobile-wrapper" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              {/* Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
+                <div>
+                  <h2 style={{ margin: 0, fontSize: '28px', fontWeight: '700', marginBottom: '8px' }}>Waiters & Staff</h2>
+                  <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '14px' }}>
+                    Approve self-registered mobile waiters, assign hotel branches, and manage active staff
+                  </p>
+                </div>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                  <button
+                    onClick={fetchWaiters}
+                    disabled={waitersLoading}
+                    className="btn btn-secondary"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '12px 16px',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                    }}
+                    title="Refresh Waiters List"
+                  >
+                    <RotateCw size={16} />
+                    {waitersLoading ? 'Refreshing...' : 'Refresh'}
+                  </button>
+                  <button
+                    onClick={() => setShowAddWaiter(true)}
+                    className="btn btn-primary"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '12px 20px',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                    }}
+                  >
+                    <UserCheck size={18} />
+                    Add Waiter
+                  </button>
+                </div>
+              </div>
+
+              {/* SECTION 1: PENDING APPROVALS */}
+              <div
+                style={{
+                  background: pendingWaiters.length > 0 ? '#fff8f0' : 'var(--surface)',
+                  borderRadius: '16px',
+                  border: pendingWaiters.length > 0 ? '1px solid #ffd8a8' : '1px solid var(--border-color)',
+                  padding: '20px',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: pendingWaiters.length > 0 ? '16px' : '0' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div
+                      style={{
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '50%',
+                        background: pendingWaiters.length > 0 ? '#ff922b' : '#64748b',
+                        color: 'white',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Clock size={18} />
+                    </div>
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '700', color: '#1a1a1a' }}>
+                        Pending Approvals & Hotel Assignments
+                      </h3>
+                      <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-secondary)' }}>
+                        {pendingWaiters.length > 0
+                          ? `${pendingWaiters.length} waiter(s) registered via the app awaiting hotel branch assignment`
+                          : 'No pending waiter approvals. All registered waiters are assigned to a hotel.'}
+                      </p>
+                    </div>
+                  </div>
+                  {pendingWaiters.length > 0 && (
+                    <span
+                      style={{
+                        background: '#ff922b',
+                        color: 'white',
+                        borderRadius: '12px',
+                        padding: '4px 10px',
+                        fontSize: '12px',
+                        fontWeight: '700',
+                      }}
+                    >
+                      {pendingWaiters.length} Pending
+                    </span>
+                  )}
+                </div>
+
+                {pendingWaiters.length > 0 && (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '14px', marginTop: '14px' }}>
+                    {pendingWaiters.map((w) => (
+                      <div
+                        key={w.id}
+                        style={{
+                          background: 'white',
+                          borderRadius: '12px',
+                          border: '1px solid #ffe8cc',
+                          padding: '16px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '12px',
+                          boxShadow: '0 2px 8px rgba(255,146,43,0.08)',
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <div>
+                            <h4 style={{ margin: '0 0 4px', fontSize: '15px', fontWeight: '700', color: '#1a1a1a' }}>
+                              {w.name}
+                            </h4>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#666', fontSize: '13px' }}>
+                              <Phone size={14} color="#ff8c42" />
+                              <span>{w.phone ? `+91 ${w.phone}` : 'No phone'}</span>
+                            </div>
+                          </div>
+                          <span
+                            style={{
+                              background: '#fff3bf',
+                              color: '#d9480f',
+                              fontSize: '10px',
+                              fontWeight: '700',
+                              padding: '2px 8px',
+                              borderRadius: '12px',
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.5px',
+                            }}
+                          >
+                            Pending
+                          </span>
+                        </div>
+
+                        {w.created_at && (
+                          <span style={{ fontSize: '11px', color: '#888' }}>
+                            Registered: {new Date(w.created_at).toLocaleDateString()}
+                          </span>
+                        )}
+
+                        {/* Assign Hotel Selector & Button */}
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '4px' }}>
+                          <select
+                            value={selectedApprovalHotels[w.id] || ''}
+                            onChange={(e) =>
+                              setSelectedApprovalHotels({
+                                ...selectedApprovalHotels,
+                                [w.id]: e.target.value,
+                              })
+                            }
+                            style={{
+                              flex: 1,
+                              padding: '8px 10px',
+                              borderRadius: '8px',
+                              border: '1px solid #ced4da',
+                              background: '#fff',
+                              color: '#1a1a1a',
+                              fontSize: '13px',
+                              outline: 'none',
+                            }}
+                          >
+                            <option value="">Select Hotel Branch...</option>
+                            {hotels.map((h) => (
+                              <option key={h.id} value={h.id}>
+                                {h.name}
+                              </option>
+                            ))}
+                          </select>
+
+                          <button
+                            onClick={() => handleApproveWaiter(w.id)}
+                            disabled={!selectedApprovalHotels[w.id] || approvingWaiterId === w.id}
+                            className="btn btn-primary"
+                            style={{
+                              padding: '8px 14px',
+                              fontSize: '12px',
+                              fontWeight: '600',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              whiteSpace: 'nowrap',
+                              opacity: !selectedApprovalHotels[w.id] || approvingWaiterId === w.id ? 0.5 : 1,
+                            }}
+                          >
+                            <CheckCircle2 size={14} />
+                            {approvingWaiterId === w.id ? 'Approving...' : 'Approve'}
+                          </button>
+
+                          <button
+                            onClick={(e) => handleDeleteWaiter(w.id, e)}
+                            title="Reject registration"
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              color: '#ef4444',
+                              cursor: 'pointer',
+                              padding: '6px',
+                            }}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* SECTION 2: APPROVED / ACTIVE WAITERS */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '12px' }}>
+                  <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '700', color: '#1a1a1a' }}>
+                    Assigned Waiters ({filteredApprovedWaiters.length})
+                  </h3>
+
+                  {/* Filters: Search & Hotel */}
+                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <input
+                      type="text"
+                      value={waiterSearch}
+                      onChange={(e) => setWaiterSearch(e.target.value)}
+                      placeholder="Search name, phone, or hotel..."
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-color)',
+                        background: 'var(--surface)',
+                        color: '#1a1a1a',
+                        fontSize: '13px',
+                        minWidth: '220px',
+                      }}
+                    />
+
+                    <select
+                      value={waiterHotelFilter}
+                      onChange={(e) => setWaiterHotelFilter(e.target.value)}
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-color)',
+                        background: 'var(--surface)',
+                        color: '#1a1a1a',
+                        fontSize: '13px',
+                      }}
+                    >
+                      <option value="ALL">All Hotel Branches</option>
+                      {hotels.map((h) => (
+                        <option key={h.id} value={h.id}>
+                          {h.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {waitersLoading ? (
+                  <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                    Loading waiters...
+                  </div>
+                ) : waitersError ? (
+                  <div style={{ padding: '40px 0', textAlign: 'center', color: '#c0392b' }}>{waitersError}</div>
+                ) : filteredApprovedWaiters.length === 0 ? (
+                  <div
+                    style={{
+                      padding: '40px 20px',
+                      textAlign: 'center',
+                      background: 'var(--surface)',
+                      borderRadius: '16px',
+                      border: '1px solid var(--border-color)',
+                      color: 'var(--text-secondary)',
+                    }}
+                  >
+                    {waiterSearch || waiterHotelFilter !== 'ALL'
+                      ? 'No waiters match your search filters.'
+                      : 'No approved waiters yet. When waiters register on the mobile app, approve them above or click "+ Add Waiter" to add one manually.'}
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+                      gap: '16px',
+                    }}
+                  >
+                    {filteredApprovedWaiters.map((waiter) => {
+                      const initials = (waiter.name || 'W')
+                        .split(' ')
+                        .map((n) => n[0])
+                        .join('')
+                        .toUpperCase()
+                        .slice(0, 2);
+
+                      const colors = ['#2d7a4a', '#ff8c42', '#0066cc', '#9933cc', '#ff6b6b', '#4ecdc4'];
+                      const bgColor = colors[waiter.id % colors.length];
+
+                      return (
+                        <div
+                          key={waiter.id}
+                          className="admin-mobile-card"
+                          style={{
+                            padding: '20px',
+                            background: '#ffffff',
+                            borderRadius: '16px',
+                            border: '1px solid rgba(0,0,0,0.06)',
+                            transition: 'all 0.2s',
+                          }}
+                        >
+                          {/* Top Row: Initials, Name, Status Pill, Actions */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                            <div style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
+                              <div
+                                style={{
+                                  width: '46px',
+                                  height: '46px',
+                                  borderRadius: '50%',
+                                  background: bgColor,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  color: 'white',
+                                  fontWeight: '700',
+                                  fontSize: '17px',
+                                }}
+                              >
+                                {initials}
+                              </div>
+                              <div>
+                                <h4 style={{ margin: '0 0 4px', fontSize: '16px', fontWeight: '700', color: '#1a1a1a' }}>
+                                  {waiter.name}
+                                </h4>
+                                <button
+                                  onClick={() => handleToggleWaiterStatus(waiter)}
+                                  title="Click to toggle active status"
+                                  style={{
+                                    background: waiter.is_active ? '#d4edda' : '#f8d7da',
+                                    color: waiter.is_active ? '#155724' : '#856404',
+                                    border: 'none',
+                                    borderRadius: '20px',
+                                    padding: '2px 8px',
+                                    fontSize: '10px',
+                                    fontWeight: '700',
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.5px',
+                                    cursor: 'pointer',
+                                  }}
+                                >
+                                  {waiter.is_active ? 'ACTIVE' : 'INACTIVE'}
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div style={{ display: 'flex', gap: '6px' }}>
+                              <button
+                                onClick={() => {
+                                  setEditingWaiter(waiter);
+                                  setShowEditWaiter(true);
+                                }}
+                                title="Edit / Reassign Hotel"
+                                style={{
+                                  background: 'transparent',
+                                  border: 'none',
+                                  color: '#999',
+                                  cursor: 'pointer',
+                                  padding: '4px',
+                                }}
+                              >
+                                <Pencil size={16} />
+                              </button>
+                              <button
+                                onClick={(e) => handleDeleteWaiter(waiter.id, e)}
+                                title="Remove waiter"
+                                style={{
+                                  background: 'transparent',
+                                  border: 'none',
+                                  color: '#ef4444',
+                                  cursor: 'pointer',
+                                  padding: '4px',
+                                }}
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Assigned Hotel Card Block */}
+                          <div
+                            style={{
+                              background: '#f8f9fa',
+                              borderRadius: '8px',
+                              padding: '10px 12px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: '10px',
+                              marginBottom: '14px',
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <Building2 size={16} color="#ff8c42" />
+                              <span style={{ color: '#333', fontSize: '13px', fontWeight: '600' }}>
+                                {waiter.restaurant_name || 'Unassigned'}
+                              </span>
+                            </div>
+                            <button
+                              onClick={() => {
+                                setEditingWaiter(waiter);
+                                setShowEditWaiter(true);
+                              }}
+                              style={{
+                                background: 'transparent',
+                                border: 'none',
+                                color: '#ff8c42',
+                                fontSize: '12px',
+                                fontWeight: '600',
+                                cursor: 'pointer',
+                                padding: '2px 6px',
+                              }}
+                            >
+                              Reassign
+                            </button>
+                          </div>
+
+                          {/* Details */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12px', color: '#666' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <Phone size={14} color="#666" />
+                              <span>{waiter.phone ? `+91 ${waiter.phone}` : 'No phone'}</span>
+                            </div>
+                            {waiter.created_at && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <Clock size={14} color="#666" />
+                                <span>Joined: {new Date(waiter.created_at).toLocaleDateString()}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* MODAL: ADD WAITER */}
+              {showAddWaiter && (
+                <div
+                  style={{
+                    position: 'fixed',
+                    inset: 0,
+                    background: 'rgba(0,0,0,0.45)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 50,
+                    padding: '24px',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: '100%',
+                      maxWidth: '520px',
+                      background: 'var(--surface)',
+                      borderRadius: '24px',
+                      padding: '28px',
+                      boxShadow: '0 24px 80px rgba(0,0,0,0.14)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                      <div>
+                        <h3 style={{ margin: 0, fontSize: '20px' }}>Add Waiter</h3>
+                        <p style={{ margin: '8px 0 0', color: 'var(--text-secondary)', fontSize: '14px' }}>
+                          Create a new waiter account and assign to a hotel branch.
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setShowAddWaiter(false);
+                          setWaiterCreateError(null);
+                        }}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: 'var(--text-secondary)',
+                          cursor: 'pointer',
+                          fontSize: '20px',
+                        }}
+                      >
+                        ×
+                      </button>
+                    </div>
+
+                    <form onSubmit={handleCreateWaiter} style={{ display: 'grid', gap: '16px' }}>
+                      <label style={{ display: 'grid', gap: '8px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                        Full Name
+                        <input
+                          type="text"
+                          required
+                          value={newWaiter.name}
+                          onChange={(e) => setNewWaiter({ ...newWaiter, name: e.target.value })}
+                          placeholder="e.g. Ramesh Kumar"
+                          style={{ padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--surface)', color: 'black' }}
+                        />
+                      </label>
+                      <label style={{ display: 'grid', gap: '8px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                        10-Digit Mobile Number (Used for mobile login)
+                        <input
+                          type="tel"
+                          required
+                          maxLength={10}
+                          value={newWaiter.phone}
+                          onChange={(e) => setNewWaiter({ ...newWaiter, phone: e.target.value.replace(/\D/g, '') })}
+                          placeholder="e.g. 9876543210"
+                          style={{ padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--surface)', color: 'black' }}
+                        />
+                      </label>
+                      <label style={{ display: 'grid', gap: '8px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                        Password (Min 6 characters)
+                        <input
+                          type="password"
+                          required
+                          minLength={6}
+                          value={newWaiter.password}
+                          onChange={(e) => setNewWaiter({ ...newWaiter, password: e.target.value })}
+                          placeholder="Enter password for mobile app login"
+                          style={{ padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--surface)', color: 'black' }}
+                        />
+                      </label>
+                      <label style={{ display: 'grid', gap: '8px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                        Assign to Hotel Branch
+                        <select
+                          required
+                          value={newWaiter.restaurant_id}
+                          onChange={(e) => setNewWaiter({ ...newWaiter, restaurant_id: e.target.value })}
+                          style={{ padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--surface)', color: 'black' }}
+                        >
+                          <option value="">Select a hotel branch...</option>
+                          {hotels.map(hotel => (
+                            <option key={hotel.id} value={hotel.id}>
+                              {hotel.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      {waiterCreateError && <p style={{ color: '#c0392b', fontSize: '13px', margin: 0 }}>{waiterCreateError}</p>}
+
+                      <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', flexWrap: 'wrap', marginTop: '8px' }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowAddWaiter(false);
+                            setWaiterCreateError(null);
+                          }}
+                          className="btn btn-secondary"
+                          style={{ minWidth: '120px' }}
+                        >
+                          Cancel
+                        </button>
+                        <button type="submit" className="btn btn-primary" disabled={isCreatingWaiter} style={{ minWidth: '120px' }}>
+                          {isCreatingWaiter ? 'Creating...' : 'Create Waiter'}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              )}
+
+              {/* MODAL: EDIT / REASSIGN WAITER */}
+              {showEditWaiter && editingWaiter && (
+                <div
+                  style={{
+                    position: 'fixed',
+                    inset: 0,
+                    background: 'rgba(0,0,0,0.45)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 50,
+                    padding: '24px',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: '100%',
+                      maxWidth: '520px',
+                      background: 'var(--surface)',
+                      borderRadius: '24px',
+                      padding: '28px',
+                      boxShadow: '0 24px 80px rgba(0,0,0,0.14)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                      <div>
+                        <h3 style={{ margin: 0, fontSize: '20px' }}>Edit Waiter</h3>
+                        <p style={{ margin: '8px 0 0', color: 'var(--text-secondary)', fontSize: '14px' }}>
+                          Update hotel assignment or status for {editingWaiter.name}.
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setShowEditWaiter(false);
+                          setEditingWaiter(null);
+                        }}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: 'var(--text-secondary)',
+                          cursor: 'pointer',
+                          fontSize: '20px',
+                        }}
+                      >
+                        ×
+                      </button>
+                    </div>
+
+                    <form onSubmit={handleUpdateWaiter} style={{ display: 'grid', gap: '16px' }}>
+                      <label style={{ display: 'grid', gap: '8px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                        Waiter Name
+                        <input
+                          type="text"
+                          required
+                          value={editingWaiter.name || ''}
+                          onChange={(e) => setEditingWaiter({ ...editingWaiter, name: e.target.value })}
+                          placeholder="Enter waiter name"
+                          style={{ padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--surface)', color: 'black' }}
+                        />
+                      </label>
+                      <label style={{ display: 'grid', gap: '8px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                        Assigned Hotel Branch
+                        <select
+                          value={editingWaiter.restaurant_id || ''}
+                          onChange={(e) => setEditingWaiter({ ...editingWaiter, restaurant_id: parseInt(e.target.value) || null })}
+                          style={{ padding: '12px 14px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--surface)', color: 'black' }}
+                        >
+                          <option value="">No Assignment</option>
+                          {hotels.map(hotel => (
+                            <option key={hotel.id} value={hotel.id}>
+                              {hotel.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                        <input
+                          type="checkbox"
+                          checked={editingWaiter.is_active || false}
+                          onChange={(e) => setEditingWaiter({ ...editingWaiter, is_active: e.target.checked })}
+                          style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                        />
+                        Active Account (Allow login on mobile app)
+                      </label>
+
+                      <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', flexWrap: 'wrap', marginTop: '8px' }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowEditWaiter(false);
+                            setEditingWaiter(null);
+                          }}
+                          className="btn btn-secondary"
+                          style={{ minWidth: '120px' }}
+                        >
+                          Cancel
+                        </button>
+                        <button type="submit" className="btn btn-primary" disabled={isSavingWaiter} style={{ minWidth: '120px' }}>
+                          {isSavingWaiter ? 'Saving...' : 'Save Changes'}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {activePage === 'reports' && (
             <div className="admin-page-mobile-wrapper" style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
               <div className="desktop-only">
@@ -1898,9 +2768,31 @@ const AdminDashboard = () => {
               key={item.id}
               className={activePage === item.id ? 'active' : ''}
               onClick={() => setActivePage(item.id)}
+              style={{ position: 'relative' }}
             >
               <Icon size={20} />
               <span>{item.label}</span>
+              {item.badge > 0 && (
+                <span
+                  style={{
+                    position: 'absolute',
+                    top: '2px',
+                    right: '18px',
+                    background: '#ff6b35',
+                    color: 'white',
+                    fontSize: '10px',
+                    fontWeight: '700',
+                    width: '16px',
+                    height: '16px',
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  {item.badge}
+                </span>
+              )}
             </button>
           );
         })}
