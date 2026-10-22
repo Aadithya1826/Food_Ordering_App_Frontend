@@ -1,22 +1,51 @@
 /**
- * KOT (Kitchen Order Ticket) Loud Ringing Audio Synthesizer
+ * Cross-Platform KOT (Kitchen Order Ticket) Audio Controller
  *
- * Implements a high-penetration, realistic 3-second loud ringing bell / kitchen alarm.
- * If multiple orders arrive simultaneously, it rings consecutively for each order
- * (e.g., 2 simultaneous orders -> rings 2 times for 3 seconds each with a clean pause).
+ * Designed to reliably play loud order alert sounds on ALL devices:
+ * - Android Phones & Tablets (Samsung, Xiaomi/Redmi, Vivo, Oppo, OnePlus, Realme, Pixel, Motorola)
+ * - iOS & iPadOS (iPhone, iPad Safari/Chrome)
+ * - Desktop Browsers (Chrome, Edge, Safari, Firefox)
+ *
+ * Implements a redundant multi-engine architecture:
+ * 1. HTML5 Audio element with pre-buffered WAV bell sound (/sounds/kot_bell.wav)
+ * 2. Web Audio API synthesized resonant telephone/alarm bell (853Hz + 960Hz dual frequency)
+ * 3. WebKit / iOS silent buffer unlock to bypass mobile autoplay restrictions
+ * 4. Periodic keep-alive heartbeat to prevent mobile OS from putting audio hardware to sleep
+ * 5. Device Vibration API for haptic physical notification
  */
 
 class KOTAudioController {
   constructor() {
     this.ctx = null;
+    this.audioElement = null;
     this.isRinging = false;
     this.pendingRings = 0;
     this.stopRequested = false;
     this.activeNodes = [];
     this.listeners = new Set();
+    this.isUnlocked = false;
+    this.keepAliveInterval = null;
+
+    if (typeof window !== 'undefined') {
+      this.initAudioElement();
+      this.setupGlobalUnlockListeners();
+    }
+  }
+
+  initAudioElement() {
+    try {
+      if (!this.audioElement) {
+        this.audioElement = new Audio('/sounds/kot_bell.wav');
+        this.audioElement.preload = 'auto';
+        this.audioElement.volume = 1.0;
+      }
+    } catch (e) {
+      console.warn('[KOT Audio] Audio element initialization error:', e);
+    }
   }
 
   getAudioContext() {
+    if (typeof window === 'undefined') return null;
     if (!this.ctx || this.ctx.state === 'closed') {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       if (AudioCtx) {
@@ -26,27 +55,115 @@ class KOTAudioController {
     return this.ctx;
   }
 
-  async resumeContext() {
+  /**
+   * Complete unlock protocol for mobile devices (iOS Safari, Android Chrome, Samsung Internet).
+   * MUST be called during a user touch/click gesture.
+   */
+  async unlock() {
+    let unlockedAny = false;
+
+    // 1. Unlock Web Audio API (Required for iOS Safari & Android Web Audio)
     const ctx = this.getAudioContext();
-    if (ctx && ctx.state === 'suspended') {
+    if (ctx) {
       try {
-        await ctx.resume();
+        if (ctx.state === 'suspended') {
+          await ctx.resume();
+        }
+        // iOS WebKit requires playing a real audio buffer during the touch event to permanently unlock
+        const silentBuffer = ctx.createBuffer(1, 1, 22050);
+        const source = ctx.createBufferSource();
+        source.buffer = silentBuffer;
+        source.connect(ctx.destination);
+        source.start(0);
+        unlockedAny = true;
       } catch (err) {
-        console.warn('AudioContext resume failed:', err);
+        console.warn('[KOT Audio] Web Audio unlock error:', err);
       }
     }
-    return ctx;
+
+    // 2. Unlock HTML5 Audio element
+    if (!this.audioElement) {
+      this.initAudioElement();
+    }
+    if (this.audioElement) {
+      try {
+        // Muted micro-play to satisfy mobile browser autoplay policy
+        this.audioElement.volume = 0.001;
+        const playPromise = this.audioElement.play();
+        if (playPromise !== undefined) {
+          await playPromise;
+          this.audioElement.pause();
+          this.audioElement.currentTime = 0;
+          this.audioElement.volume = 1.0;
+          unlockedAny = true;
+        }
+      } catch (err) {
+        // May fail if not in a direct user gesture; silent catch
+      }
+    }
+
+    this.isUnlocked = true;
+    this.startKeepAlive();
+    this.notifyListeners();
+    return unlockedAny;
+  }
+
+  /**
+   * Automatically hook up user touch/click events to unlock audio on first interaction
+   */
+  setupGlobalUnlockListeners() {
+    const handleGesture = () => {
+      this.unlock().catch(() => {});
+    };
+
+    const events = ['touchstart', 'touchend', 'pointerdown', 'click', 'keydown'];
+    events.forEach(ev => {
+      window.addEventListener(ev, handleGesture, { passive: true });
+    });
+  }
+
+  /**
+   * Periodic 15-second inaudible keep-alive to prevent mobile devices (especially iOS & Xiaomi/Samsung)
+   * from putting audio hardware to sleep while the kitchen display tab is active.
+   */
+  startKeepAlive() {
+    if (this.keepAliveInterval) return;
+    this.keepAliveInterval = setInterval(() => {
+      if (document.hidden) return;
+      const ctx = this.getAudioContext();
+      if (ctx && ctx.state === 'running') {
+        try {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          gain.gain.value = 0.00001; // Inaudible
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.05);
+        } catch (e) {}
+      }
+    }, 15000);
   }
 
   subscribe(callback) {
     this.listeners.add(callback);
+    callback({
+      isRinging: this.isRinging,
+      remainingCount: this.pendingRings,
+      isUnlocked: this.isUnlocked
+    });
     return () => this.listeners.delete(callback);
   }
 
-  notifyListeners(isRinging, remainingCount = 0) {
+  notifyListeners() {
+    const state = {
+      isRinging: this.isRinging,
+      remainingCount: this.pendingRings,
+      isUnlocked: this.isUnlocked
+    };
     this.listeners.forEach((cb) => {
       try {
-        cb({ isRinging, remainingCount });
+        cb(state);
       } catch (e) {
         console.error('Error in audio state listener:', e);
       }
@@ -54,11 +171,60 @@ class KOTAudioController {
   }
 
   /**
-   * Synthesize a single loud 3-second ringing burst
-   * Uses dual resonant telephone/alarm bell frequencies (853Hz + 960Hz),
-   * rapid 16Hz amplitude modulation, and compressor for maximum clarity and loudness.
+   * Play single 3-second loud ring using HTML5 Audio element fallback
    */
-  playSingle3SecRing(ctx) {
+  playHtmlAudio() {
+    return new Promise((resolve) => {
+      if (!this.audioElement) {
+        this.initAudioElement();
+      }
+      if (!this.audioElement) {
+        resolve(false);
+        return;
+      }
+
+      this.audioElement.currentTime = 0;
+      this.audioElement.volume = 1.0;
+
+      const onEnded = () => {
+        cleanup();
+        resolve(true);
+      };
+
+      const onError = () => {
+        cleanup();
+        resolve(false);
+      };
+
+      const cleanup = () => {
+        this.audioElement.removeEventListener('ended', onEnded);
+        this.audioElement.removeEventListener('error', onError);
+      };
+
+      this.audioElement.addEventListener('ended', onEnded, { once: true });
+      this.audioElement.addEventListener('error', onError, { once: true });
+
+      const playPromise = this.audioElement.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(() => {
+          cleanup();
+          resolve(false);
+        });
+      }
+
+      // Safety timeout at 3.2 seconds
+      setTimeout(() => {
+        cleanup();
+        resolve(true);
+      }, 3200);
+    });
+  }
+
+  /**
+   * Synthesize a piercing, loud 3-second ringing burst via Web Audio API
+   * Uses dual resonant alarm frequencies (853Hz + 960Hz) with 16Hz mechanical trill.
+   */
+  playWebAudioRing(ctx) {
     return new Promise((resolve) => {
       if (this.stopRequested) {
         resolve();
@@ -67,9 +233,9 @@ class KOTAudioController {
 
       try {
         const startTime = ctx.currentTime;
-        const ringDuration = 3.0; // Exact 3 seconds ring
+        const ringDuration = 3.0;
 
-        // Dynamics Compressor to maximize perceived volume without speaker clipping
+        // Dynamics Compressor to maximize perceived volume without speaker distortion
         const compressor = ctx.createDynamicsCompressor();
         compressor.threshold.setValueAtTime(-14, startTime);
         compressor.knee.setValueAtTime(24, startTime);
@@ -82,7 +248,7 @@ class KOTAudioController {
         const masterGain = ctx.createGain();
         masterGain.connect(compressor);
 
-        // Dual resonant frequencies (standard attention-grabbing bell frequencies)
+        // Dual resonant bell frequencies
         const osc1 = ctx.createOscillator();
         const osc2 = ctx.createOscillator();
         osc1.type = 'triangle';
@@ -90,7 +256,7 @@ class KOTAudioController {
         osc1.frequency.setValueAtTime(853, startTime);
         osc2.frequency.setValueAtTime(960, startTime);
 
-        // Bandpass filter to sculpt piercing bell resonance
+        // Piercing bandpass filter
         const filter = ctx.createBiquadFilter();
         filter.type = 'bandpass';
         filter.frequency.setValueAtTime(900, startTime);
@@ -99,7 +265,7 @@ class KOTAudioController {
         osc1.connect(filter);
         osc2.connect(filter);
 
-        // Tremolo: 16 Hz modulation for realistic mechanical ringer trill
+        // Tremolo: 16 Hz modulation for realistic ringer trill
         const tremoloGain = ctx.createGain();
         const lfo = ctx.createOscillator();
         lfo.type = 'square';
@@ -115,13 +281,7 @@ class KOTAudioController {
         filter.connect(tremoloGain);
         tremoloGain.connect(masterGain);
 
-        // Triple-burst rhythmic ring profile inside the 3 seconds:
-        // Burst 1: 0.0s -> 0.85s (Ring)
-        // Pause 1: 0.85s -> 0.95s
-        // Burst 2: 0.95s -> 1.80s (Ring)
-        // Pause 2: 1.80s -> 1.90s
-        // Burst 3: 1.90s -> 2.85s (Ring)
-        // Decay:   2.85s -> 3.00s (Fade)
+        // Triple-burst rhythmic ring profile inside 3 seconds
         const bursts = [
           { start: 0.0, end: 0.85 },
           { start: 0.95, end: 1.80 },
@@ -131,17 +291,15 @@ class KOTAudioController {
         masterGain.gain.setValueAtTime(0, startTime);
         bursts.forEach(({ start, end }) => {
           masterGain.gain.setValueAtTime(0, startTime + start);
-          masterGain.gain.linearRampToValueAtTime(0.95, startTime + start + 0.02);
-          masterGain.gain.setValueAtTime(0.95, startTime + end - 0.03);
+          masterGain.gain.linearRampToValueAtTime(0.98, startTime + start + 0.02);
+          masterGain.gain.setValueAtTime(0.98, startTime + end - 0.03);
           masterGain.gain.linearRampToValueAtTime(0, startTime + end);
         });
 
-        // Extra final decay to ensure clean release
         masterGain.gain.setValueAtTime(0, startTime + 2.85);
         masterGain.gain.linearRampToValueAtTime(0.8, startTime + 2.86);
         masterGain.gain.exponentialRampToValueAtTime(0.0001, startTime + ringDuration);
 
-        // Start all oscillators
         lfo.start(startTime);
         osc1.start(startTime);
         osc2.start(startTime);
@@ -150,31 +308,50 @@ class KOTAudioController {
         osc1.stop(startTime + ringDuration);
         osc2.stop(startTime + ringDuration);
 
-        // Store active nodes so stopKOTRinging can instantly silence if required
         const nodes = [osc1, osc2, lfo, masterGain];
         this.activeNodes.push(...nodes);
-
-        // Vibrate mobile/tablet hardware if supported
-        if (navigator.vibrate) {
-          navigator.vibrate([350, 100, 350, 100, 350]);
-        }
 
         setTimeout(() => {
           this.activeNodes = this.activeNodes.filter((n) => !nodes.includes(n));
           resolve();
         }, ringDuration * 1000);
       } catch (err) {
-        console.error('Error in playSingle3SecRing:', err);
+        console.error('[KOT Audio] playWebAudioRing error:', err);
         resolve();
       }
     });
   }
 
   /**
-   * Trigger loud ringing sound for N orders.
-   * If 1 order -> rings 1 time for 3 sec.
-   * If 2 orders simultaneously -> rings 2 times, 3 sec each with brief pause in-between.
-   * If N orders -> rings N times for 3 sec each.
+   * Play single 3-second ring across BOTH engines simultaneously (or fallback)
+   */
+  async playSingle3SecRing() {
+    // 1. Vibrate mobile hardware (supported on Android phones and tablets)
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      try {
+        navigator.vibrate([400, 150, 400, 150, 400]);
+      } catch (e) {}
+    }
+
+    const ctx = this.getAudioContext();
+    const canUseWebAudio = ctx && ctx.state === 'running';
+
+    // If Web Audio is active, play synthesized audio and also launch HTML5 audio as companion/backup
+    if (canUseWebAudio) {
+      await Promise.race([
+        this.playWebAudioRing(ctx),
+        this.playHtmlAudio()
+      ]);
+    } else {
+      // Direct HTML5 audio fallback
+      await this.playHtmlAudio();
+    }
+  }
+
+  /**
+   * Main entry point: ring loudly for N order arrivals.
+   * If 1 order -> 1 cycle (3 sec).
+   * If 2 orders -> 2 cycles (3 sec each with brief pause).
    */
   async ringForOrders(count = 1) {
     const ordersCount = Math.max(1, parseInt(count, 10) || 1);
@@ -182,25 +359,25 @@ class KOTAudioController {
     this.stopRequested = false;
 
     if (this.isRinging) {
-      this.notifyListeners(true, this.pendingRings);
+      this.notifyListeners();
       return;
     }
 
     this.isRinging = true;
-    this.notifyListeners(true, this.pendingRings);
+    this.notifyListeners();
 
     try {
-      const ctx = await this.resumeContext();
-      if (!ctx) {
-        this.isRinging = false;
-        this.pendingRings = 0;
-        this.notifyListeners(false, 0);
-        return;
+      // Ensure audio context is resumed if possible
+      const ctx = this.getAudioContext();
+      if (ctx && ctx.state === 'suspended') {
+        try {
+          await ctx.resume();
+        } catch (e) {}
       }
 
       while (this.pendingRings > 0 && !this.stopRequested) {
-        this.notifyListeners(true, this.pendingRings);
-        await this.playSingle3SecRing(ctx);
+        this.notifyListeners();
+        await this.playSingle3SecRing();
         this.pendingRings = Math.max(0, this.pendingRings - 1);
 
         if (this.pendingRings > 0 && !this.stopRequested) {
@@ -209,12 +386,12 @@ class KOTAudioController {
         }
       }
     } catch (err) {
-      console.warn('Ringing execution error:', err);
+      console.warn('[KOT Audio] Ringing error:', err);
     } finally {
       this.isRinging = false;
       this.pendingRings = 0;
       this.stopRequested = false;
-      this.notifyListeners(false, 0);
+      this.notifyListeners();
     }
   }
 
@@ -224,6 +401,16 @@ class KOTAudioController {
   stop() {
     this.stopRequested = true;
     this.pendingRings = 0;
+
+    // Stop HTML5 audio
+    if (this.audioElement) {
+      try {
+        this.audioElement.pause();
+        this.audioElement.currentTime = 0;
+      } catch (e) {}
+    }
+
+    // Stop Web Audio nodes
     this.activeNodes.forEach((node) => {
       try {
         if (typeof node.stop === 'function') node.stop();
@@ -234,7 +421,7 @@ class KOTAudioController {
     });
     this.activeNodes = [];
     this.isRinging = false;
-    this.notifyListeners(false, 0);
+    this.notifyListeners();
   }
 }
 
@@ -244,4 +431,4 @@ export const ringKOTOrders = (count = 1) => kotAudio.ringForOrders(count);
 
 export const stopKOTRinging = () => kotAudio.stop();
 
-export const unlockKOTAudio = () => kotAudio.resumeContext();
+export const unlockKOTAudio = () => kotAudio.unlock();

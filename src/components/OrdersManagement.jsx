@@ -30,7 +30,7 @@ const OrdersManagement = () => {
   const [activeMobileTab, setActiveMobileTab] = useState('PENDING');
   const [selectedKOTOrder, setSelectedKOTOrder] = useState(null);
   const [orderMode, setOrderMode] = useState('DINE_IN'); // 'DINE_IN' | 'TAKEAWAY'
-  const [ringingInfo, setRingingInfo] = useState({ isRinging: false, remainingCount: 0 });
+  const [ringingInfo, setRingingInfo] = useState({ isRinging: false, remainingCount: 0, isUnlocked: false });
   const [searchTerm, setSearchTerm] = useState('');
   const knownOrderIdsRef = useRef(null);
 
@@ -42,16 +42,16 @@ const OrdersManagement = () => {
     return () => unsubscribe();
   }, []);
 
-  // Unlock AudioContext on first user interaction with the page
+  // Unlock AudioContext and HTML5 Audio on ANY user interaction with the page (required by iOS/Android)
   useEffect(() => {
     const handleInteraction = () => {
-      unlockKOTAudio();
+      unlockKOTAudio().catch(() => {});
     };
-    window.addEventListener('click', handleInteraction, { once: true });
-    window.addEventListener('touchstart', handleInteraction, { once: true });
+
+    const events = ['click', 'touchstart', 'touchend', 'pointerdown'];
+    events.forEach(ev => window.addEventListener(ev, handleInteraction, { passive: true }));
     return () => {
-      window.removeEventListener('click', handleInteraction);
-      window.removeEventListener('touchstart', handleInteraction);
+      events.forEach(ev => window.removeEventListener(ev, handleInteraction));
     };
   }, []);
 
@@ -505,6 +505,64 @@ const OrdersManagement = () => {
             }}
           >
             <BellOff size={14} /> Stop Alarm
+          </button>
+        </div>
+      )}
+
+      {/* Mobile & Tablet Audio Activation Prompt */}
+      {!ringingInfo.isUnlocked && (
+        <div 
+          onClick={async () => {
+            await unlockKOTAudio();
+            ringKOTOrders(1);
+          }}
+          style={{
+            background: 'linear-gradient(90deg, #1d4ed8 0%, #2563eb 100%)',
+            color: 'white',
+            padding: '12px 18px',
+            borderRadius: '16px',
+            marginBottom: '16px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+            cursor: 'pointer',
+            boxShadow: '0 6px 18px rgba(37, 99, 235, 0.25)',
+            border: '1px solid rgba(255, 255, 255, 0.2)'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span style={{ fontSize: '24px' }}>🔊</span>
+            <div>
+              <div style={{ fontWeight: '800', fontSize: '14px', letterSpacing: '0.2px' }}>
+                Tap Anywhere to Enable Loud Order Audio Alerts
+              </div>
+              <div style={{ fontSize: '12px', opacity: 0.9 }}>
+                Required on mobile phones & tablets (iPhone, iPad, Samsung, Vivo, Oppo) so incoming orders ring loudly
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={async (e) => {
+              e.stopPropagation();
+              await unlockKOTAudio();
+              ringKOTOrders(1);
+            }}
+            style={{
+              background: 'white',
+              color: '#1d4ed8',
+              border: 'none',
+              padding: '8px 16px',
+              borderRadius: '20px',
+              fontWeight: '800',
+              fontSize: '12px',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.1)'
+            }}
+          >
+            🔔 Enable & Test
           </button>
         </div>
       )}
