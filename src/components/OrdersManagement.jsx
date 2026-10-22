@@ -320,12 +320,14 @@ const OrdersManagement = () => {
     if (!searchTerm.trim()) return true;
     const term = searchTerm.toLowerCase().trim();
     const orderIdStr = (order.order_id || '').toString().toLowerCase();
+    const branchOrderIdStr = (order.branch_order_id || '').toString().toLowerCase();
+    const billNoStr = (order.bill_no || '').toString().toLowerCase();
     const cust = getCustomerDetails(order);
     const nameMatch = cust.name.toLowerCase().includes(term);
     const phoneMatch = cust.phone.toLowerCase().includes(term);
     const itemsMatch = order.items && order.items.some(i => (i.name || '').toLowerCase().includes(term));
     const tableMatch = (order.table_number || '').toString().toLowerCase().includes(term);
-    return orderIdStr.includes(term) || nameMatch || phoneMatch || itemsMatch || tableMatch;
+    return orderIdStr.includes(term) || branchOrderIdStr.includes(term) || billNoStr.includes(term) || nameMatch || phoneMatch || itemsMatch || tableMatch;
   });
   const activeDineInOrdersCount = orders.filter(o => isDineIn(o) && o.status !== 'SERVED').length;
   const activeTakeawayOrdersCount = orders.filter(o => isTakeaway(o) && o.status !== 'SERVED').length;
@@ -524,6 +526,36 @@ const OrdersManagement = () => {
           align-items: center;
           justify-content: center;
         }
+        @media print {
+          body * {
+            visibility: hidden;
+          }
+          .kot-ticket-content, .kot-ticket-content * {
+            visibility: visible;
+          }
+          .kot-modal-overlay {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            height: auto !important;
+            background: transparent !important;
+            padding: 0 !important;
+          }
+          .kot-ticket-content {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            box-shadow: none !important;
+            border: none !important;
+            padding: 0 !important;
+          }
+          .kot-ticket-content button {
+            display: none !important;
+          }
+        }
       `}</style>
       <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', padding: '4px', background: 'rgba(0,0,0,0.04)', borderRadius: '24px', width: 'fit-content' }}>
         <button 
@@ -665,8 +697,25 @@ const OrdersManagement = () => {
             }}>
               {/* Header row: Order ID + Payment badge on left, Exact Placed Time & Ago on right */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px', gap: '8px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                  <span style={{ color: paymentInfo.orderIdColor, fontWeight: '800', fontSize: '15px' }}>#{order.branch_order_id || order.order_id}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                  <span style={{ color: paymentInfo.orderIdColor, fontWeight: '800', fontSize: '15px' }}>
+                    #{order.branch_order_id || order.order_id}
+                  </span>
+                  {order.bill_no ? (
+                    <span style={{
+                      fontSize: '11px',
+                      fontWeight: '800',
+                      padding: '2px 8px',
+                      borderRadius: '8px',
+                      background: '#ecfdf5',
+                      color: '#047857',
+                      border: '1px solid #a7f3d0',
+                      display: 'inline-flex',
+                      alignItems: 'center'
+                    }}>
+                      Bill #{order.bill_no}
+                    </span>
+                  ) : null}
                   <span style={{
                     fontSize: '10px',
                     fontWeight: '700',
@@ -945,7 +994,24 @@ const OrdersManagement = () => {
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                        <span style={{ fontWeight: '800', fontSize: '15px', color: paymentInfo.orderIdColor }}>#{order.branch_order_id || order.order_id}</span>
+                        <span style={{ fontWeight: '800', fontSize: '15px', color: paymentInfo.orderIdColor }}>
+                          #{order.branch_order_id || order.order_id}
+                        </span>
+                        {order.bill_no ? (
+                          <span style={{
+                            fontSize: '11px',
+                            fontWeight: '800',
+                            padding: '2px 8px',
+                            borderRadius: '8px',
+                            background: '#ecfdf5',
+                            color: '#047857',
+                            border: '1px solid #a7f3d0',
+                            display: 'inline-flex',
+                            alignItems: 'center'
+                          }}>
+                            Bill #{order.bill_no}
+                          </span>
+                        ) : null}
                         <span style={{
                           fontSize: '11px',
                           fontWeight: '700',
@@ -1183,16 +1249,47 @@ const OrdersManagement = () => {
 
       {/* KOT Modal */}
       {selectedKOTOrder && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }} onClick={() => setSelectedKOTOrder(null)}>
-          <div style={{ background: '#f8f9fa', padding: '32px 24px', borderRadius: '8px', maxWidth: '360px', width: '100%', fontFamily: 'monospace', color: 'black', boxShadow: '0 20px 40px rgba(0,0,0,0.2)', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
-            <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '16px', letterSpacing: '2px', marginBottom: '8px' }}>KITCHEN ORDER TICKET</div>
-            <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '14px', letterSpacing: '4px', marginBottom: '16px' }}>* * * KOT * * *</div>
+        <div 
+          className="kot-modal-overlay"
+          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }} 
+          onClick={() => setSelectedKOTOrder(null)}
+        >
+          <div 
+            className="kot-ticket-content"
+            style={{ background: '#f8f9fa', padding: '28px 22px', borderRadius: '12px', maxWidth: '380px', width: '100%', fontFamily: 'monospace', color: 'black', boxShadow: '0 20px 40px rgba(0,0,0,0.25)', maxHeight: '90vh', overflowY: 'auto', border: '1px solid #e2e8f0' }} 
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ textAlign: 'center', fontWeight: '900', fontSize: '17px', letterSpacing: '2px', marginBottom: '6px' }}>KITCHEN ORDER TICKET</div>
+            <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '13px', letterSpacing: '4px', color: '#64748b', marginBottom: '14px' }}>* * * KOT * * *</div>
+            
+            {/* Prominent Verification Box: Order No + Bill No */}
+            <div style={{ borderTop: '1px dashed #aaa', margin: '10px 0' }}></div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', margin: '12px 0' }}>
+              <div style={{ textAlign: 'center', padding: '10px 6px', background: '#ffffff', borderRadius: '8px', border: '1px solid #cbd5e1', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>Order No</div>
+                <div style={{ fontSize: '24px', fontWeight: '900', color: '#0f172a' }}>
+                  #{selectedKOTOrder.branch_order_id || selectedKOTOrder.order_id}
+                </div>
+              </div>
+              <div style={{ textAlign: 'center', padding: '10px 6px', background: '#f0fdf4', borderRadius: '8px', border: '1px solid #86efac', boxShadow: '0 1px 3px rgba(34,197,94,0.1)' }}>
+                <div style={{ fontSize: '11px', fontWeight: '700', color: '#166534', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>Bill No</div>
+                <div style={{ fontSize: '24px', fontWeight: '900', color: '#15803d' }}>
+                  {selectedKOTOrder.bill_no ? `#${selectedKOTOrder.bill_no}` : `#${selectedKOTOrder.branch_order_id || selectedKOTOrder.order_id}`}
+                </div>
+              </div>
+            </div>
             
             <div style={{ borderTop: '1px dashed #aaa', margin: '12px 0' }}></div>
-            <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '14px', marginBottom: '4px' }}>Order No</div>
-            <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '36px', marginBottom: '16px' }}>#{selectedKOTOrder.order_id}</div>
-            
-            <div style={{ borderTop: '1px dashed #aaa', margin: '12px 0' }}></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px', fontWeight: '600' }}>
+              <span>Order Number</span>
+              <span style={{ fontWeight: '800' }}>#{selectedKOTOrder.branch_order_id || selectedKOTOrder.order_id}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px', fontWeight: '600' }}>
+              <span>Bill Number</span>
+              <span style={{ fontWeight: '800', color: '#15803d' }}>
+                {selectedKOTOrder.bill_no ? `#${selectedKOTOrder.bill_no}` : `#${selectedKOTOrder.branch_order_id || selectedKOTOrder.order_id}`}
+              </span>
+            </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px', fontWeight: '600' }}>
               <span>Date</span>
               <span>{new Date(selectedKOTOrder.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
@@ -1269,12 +1366,20 @@ const OrdersManagement = () => {
             <div style={{ borderTop: '1px dashed #aaa', margin: '12px 0' }}></div>
             <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '13px', marginTop: '16px' }}>* * * END OF TICKET * * *</div>
             
-            <button 
-              onClick={() => setSelectedKOTOrder(null)}
-              style={{ marginTop: '24px', width: '100%', padding: '12px', background: '#e0e0e0', border: 'none', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'sans-serif' }}
-            >
-              CLOSE TICKET
-            </button>
+            <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+              <button 
+                onClick={() => window.print()}
+                style={{ flex: 1, padding: '12px', background: '#ff6b35', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+              >
+                🖨️ PRINT KOT
+              </button>
+              <button 
+                onClick={() => setSelectedKOTOrder(null)}
+                style={{ flex: 1, padding: '12px', background: '#e0e0e0', color: '#333', border: 'none', borderRadius: '6px', fontWeight: 'bold', fontSize: '13px', cursor: 'pointer', fontFamily: 'sans-serif' }}
+              >
+                CLOSE
+              </button>
+            </div>
           </div>
         </div>
       )}
