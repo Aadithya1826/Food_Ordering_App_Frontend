@@ -1,38 +1,34 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Clock, ChefHat, CheckCircle2, Truck, Search, SlidersHorizontal, Bell, BellOff, Volume2, User, Phone } from 'lucide-react';
 import { orderService } from '../services/api';
 import { kotAudio, ringKOTOrders, stopKOTRinging, unlockKOTAudio } from '../utils/kotAudio';
 
-const DINE_IN_COLUMNS = [
-  { id: 'PENDING', title: 'New Orders', icon: Clock, color: '#ff8c42', bg: 'rgba(255, 140, 66, 0.1)', iconBg: '#ff8c42', defaultBg: '#fff' },
-  { id: 'PREPARING', title: 'Preparing', icon: ChefHat, color: '#fbb117', bg: 'rgba(251, 177, 23, 0.1)', iconBg: '#fbb117', defaultBg: '#fff' },
-  { id: 'READY', title: 'Ready to Serve', icon: CheckCircle2, color: '#2d7a4a', bg: 'rgba(45, 122, 74, 0.1)', iconBg: '#2d7a4a', defaultBg: '#fff' },
-  { id: 'SERVED', title: 'Served', icon: Truck, color: '#666', bg: 'rgba(100, 100, 100, 0.1)', iconBg: '#888', defaultBg: '#fff' },
+const KDS_COLUMNS = [
+  { id: 'NEW', title: 'New Orders', icon: Clock, color: '#ff8c42', bg: 'rgba(255, 140, 66, 0.1)', iconBg: '#ff8c42', defaultBg: '#fff' },
+  { id: 'HISTORY', title: 'History', icon: CheckCircle2, color: '#2d7a4a', bg: 'rgba(45, 122, 74, 0.1)', iconBg: '#2d7a4a', defaultBg: '#fff' },
 ];
 
-const TAKEAWAY_COLUMNS = [
-  { id: 'PENDING', title: 'New Orders', icon: Clock, color: '#ff8c42', bg: 'rgba(255, 140, 66, 0.1)', iconBg: '#ff8c42', defaultBg: '#fff' },
-  { id: 'PREPARING', title: 'Preparing', icon: ChefHat, color: '#fbb117', bg: 'rgba(251, 177, 23, 0.1)', iconBg: '#fbb117', defaultBg: '#fff' },
-  { id: 'READY', title: 'Ready to pickup', icon: CheckCircle2, color: '#2d7a4a', bg: 'rgba(45, 122, 74, 0.1)', iconBg: '#2d7a4a', defaultBg: '#fff' },
-  { id: 'SERVED', title: 'Picked up', icon: Truck, color: '#666', bg: 'rgba(100, 100, 100, 0.1)', iconBg: '#888', defaultBg: '#fff' },
-];
-
-const DELIVERY_COLUMNS = [
-  { id: 'PENDING', title: 'New Orders', icon: Clock, color: '#ff8c42', bg: 'rgba(255, 140, 66, 0.1)', iconBg: '#ff8c42', defaultBg: '#fff' },
-  { id: 'PREPARING', title: 'Preparing', icon: ChefHat, color: '#fbb117', bg: 'rgba(251, 177, 23, 0.1)', iconBg: '#fbb117', defaultBg: '#fff' },
-  { id: 'READY', title: 'Ready for Delivery', icon: CheckCircle2, color: '#2d7a4a', bg: 'rgba(45, 122, 74, 0.1)', iconBg: '#2d7a4a', defaultBg: '#fff' },
-  { id: 'SERVED', title: 'Out for Delivery', icon: Truck, color: '#666', bg: 'rgba(100, 100, 100, 0.1)', iconBg: '#888', defaultBg: '#fff' },
-];
+const isOrderInColumn = (order, columnId) => {
+  const status = (order.status || '').toUpperCase();
+  if (columnId === 'NEW') {
+    return status === 'PENDING' || status === 'CONFIRMED' || status === 'PREPARING';
+  }
+  if (columnId === 'HISTORY') {
+    return status === 'READY' || status === 'SERVED';
+  }
+  return false;
+};
 
 const OrdersManagement = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeMobileTab, setActiveMobileTab] = useState('PENDING');
+  const [activeMobileTab, setActiveMobileTab] = useState('NEW');
   const [selectedKOTOrder, setSelectedKOTOrder] = useState(null);
-  const [orderMode, setOrderMode] = useState('DINE_IN'); // 'DINE_IN' | 'TAKEAWAY'
+  const [orderMode, setOrderMode] = useState('ALL'); // 'ALL' | 'DINE_IN' | 'TAKEAWAY' | 'DELIVERY'
   const [ringingInfo, setRingingInfo] = useState({ isRinging: false, remainingCount: 0, isUnlocked: false });
   const [searchTerm, setSearchTerm] = useState('');
   const knownOrderIdsRef = useRef(null);
+  const pendingUpdatesRef = useRef(new Map());
 
   // Subscribe to KOT audio controller state
   useEffect(() => {
@@ -133,36 +129,22 @@ const OrdersManagement = () => {
       amountColor: '#b91c1c',
     };
   };
-  useEffect(() => {
-    fetchOrders();
-    const interval = setInterval(fetchOrders, 4000); // Polling every 4s for rapid KOT order alerts
-
-    const handleVoiceNav = (e) => {
-      if (e.detail && e.detail.tab) {
-        const tabStr = e.detail.tab.toUpperCase();
-        const tabMap = {
-          'PENDING': 'PENDING', 'NEW ORDERS': 'PENDING', 'NEW': 'PENDING',
-          'PREPARING': 'PREPARING',
-          'READY': 'READY', 'READY TO SERVE': 'READY',
-          'SERVED': 'SERVED'
-        };
-        const mappedTab = tabMap[tabStr] || tabStr;
-        setActiveMobileTab(mappedTab);
-      }
-    };
-    window.addEventListener('navigate-orders-tab', handleVoiceNav);
-
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener('navigate-orders-tab', handleVoiceNav);
-    };
-  }, []);
-
-  const fetchOrders = async () => {
+  const fetchOrders = useCallback(async () => {
     try {
       const data = await orderService.getLiveOrders();
-      const currentOrders = Array.isArray(data) ? data : [];
+      let currentOrders = Array.isArray(data) ? data : [];
       
+      // Preserve active optimistic updates so polling never reverts in-flight user actions
+      if (pendingUpdatesRef.current.size > 0) {
+        currentOrders = currentOrders.map(o => {
+          const pendingStatus = pendingUpdatesRef.current.get(o.order_id);
+          if (pendingStatus) {
+            return { ...o, status: pendingStatus };
+          }
+          return o;
+        });
+      }
+
       if (currentOrders.length > 0) {
         const currentIds = currentOrders.map(o => o.order_id || o.id);
 
@@ -179,7 +161,6 @@ const OrdersManagement = () => {
             newOrders.forEach(o => knownOrderIdsRef.current.add(o.order_id || o.id));
 
             // Ring louder: 3 sec per order, repeated for as many orders arrived!
-            // (e.g. if simultaneously two orders placed, it will ring 2 times as 3sec ring)
             ringKOTOrders(newOrdersCount);
           }
         }
@@ -193,20 +174,78 @@ const OrdersManagement = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const updateOrderStatus = async (orderId, newStatus) => {
-    // Optimistic update
-    setOrders(current => current.map(o => o.order_id === orderId ? { ...o, status: newStatus } : o));
-    try {
-      await orderService.updateOrderStatus(orderId, newStatus);
-      // Re-fetch to ensure sync
-      fetchOrders();
-    } catch (err) {
-      console.error('Error updating order status:', err);
-      fetchOrders(); // Revert on failure
+  useEffect(() => {
+    fetchOrders();
+    const interval = setInterval(fetchOrders, 2000); // Fast live polling every 2s for instant reflection
+
+    const handleVoiceNav = (e) => {
+      if (e.detail && e.detail.tab) {
+        const tabStr = e.detail.tab.toUpperCase();
+        const tabMap = {
+          'PENDING': 'NEW', 'NEW ORDERS': 'NEW', 'NEW': 'NEW',
+          'PREPARING': 'NEW',
+          'READY': 'HISTORY', 'READY TO SERVE': 'HISTORY', 'HISTORY': 'HISTORY',
+          'SERVED': 'HISTORY'
+        };
+        const mappedTab = tabMap[tabStr] || tabStr;
+        setActiveMobileTab(mappedTab);
+      }
+    };
+    window.addEventListener('navigate-orders-tab', handleVoiceNav);
+
+    let channel = null;
+    if (typeof BroadcastChannel !== 'undefined') {
+      try {
+        channel = new BroadcastChannel('udipi_kds_sync_channel');
+        channel.onmessage = () => {
+          fetchOrders();
+        };
+      } catch (e) {}
     }
-  };
+
+    const handleStorage = (e) => {
+      if (e.key === 'kds_instant_sync_ping') {
+        fetchOrders();
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('navigate-orders-tab', handleVoiceNav);
+      window.removeEventListener('storage', handleStorage);
+      if (channel) channel.close();
+    };
+  }, [fetchOrders]);
+
+  const updateOrderStatus = useCallback((orderId, newStatus) => {
+    if (!orderId) return;
+
+    // Record optimistic status in cache
+    pendingUpdatesRef.current.set(orderId, newStatus);
+
+    // 1. INSTANT 0ms synchronous UI update (guarantees instantaneous reaction on click)
+    setOrders(current =>
+      current.map(o => (o.order_id === orderId ? { ...o, status: newStatus } : o))
+    );
+
+    // 2. Non-blocking asynchronous network update in background (zero latency for user)
+    orderService.updateOrderStatus(orderId, newStatus)
+      .then(() => {
+        // Shield against any race condition with background polling for 5 seconds
+        setTimeout(() => {
+          pendingUpdatesRef.current.delete(orderId);
+        }, 5000);
+      })
+      .catch((err) => {
+        console.error('Error updating order status:', err);
+        pendingUpdatesRef.current.delete(orderId);
+        // Only re-fetch if the server explicitly rejected the update
+        fetchOrders();
+      });
+  }, [fetchOrders]);
 
   const updatePaymentStatus = async (orderId, isPaid) => {
     const newStatus = isPaid ? 'Paid' : 'Pending';
@@ -228,14 +267,18 @@ const OrdersManagement = () => {
     e.preventDefault();
   };
 
-  const handleDrop = (e, targetStatus) => {
+  const handleDrop = (e, targetColumnId) => {
     e.preventDefault();
     const orderId = parseInt(e.dataTransfer.getData('orderId'), 10);
     if (!orderId) return;
 
     const order = orders.find(o => o.order_id === orderId);
-    if (order && order.status !== targetStatus) {
-      updateOrderStatus(orderId, targetStatus);
+    if (order) {
+      if (targetColumnId === 'NEW' && (order.status === 'READY' || order.status === 'SERVED')) {
+        updateOrderStatus(orderId, 'PREPARING');
+      } else if (targetColumnId === 'HISTORY' && (order.status === 'PENDING' || order.status === 'CONFIRMED' || order.status === 'PREPARING')) {
+        updateOrderStatus(orderId, 'READY');
+      }
     }
   };
 
@@ -312,23 +355,25 @@ const OrdersManagement = () => {
     return `${days} days ago`;
   };
 
-  const currentColumns = orderMode === 'TAKEAWAY' ? TAKEAWAY_COLUMNS : orderMode === 'DELIVERY' ? DELIVERY_COLUMNS : DINE_IN_COLUMNS;
-  const filteredOrders = orders.filter(order => {
-    const matchesMode = orderMode === 'TAKEAWAY' ? isTakeaway(order) : orderMode === 'DELIVERY' ? isDelivery(order) : isDineIn(order);
-    if (!matchesMode) return false;
+  const currentColumns = KDS_COLUMNS;
+  const filteredOrders = useMemo(() => {
+    return orders.filter(order => {
+      const matchesMode = orderMode === 'ALL' ? true : orderMode === 'TAKEAWAY' ? isTakeaway(order) : orderMode === 'DELIVERY' ? isDelivery(order) : isDineIn(order);
+      if (!matchesMode) return false;
 
-    if (!searchTerm.trim()) return true;
-    const term = searchTerm.toLowerCase().trim();
-    const orderIdStr = (order.order_id || '').toString().toLowerCase();
-    const branchOrderIdStr = (order.branch_order_id || '').toString().toLowerCase();
-    const billNoStr = (order.bill_no || '').toString().toLowerCase();
-    const cust = getCustomerDetails(order);
-    const nameMatch = cust.name.toLowerCase().includes(term);
-    const phoneMatch = cust.phone.toLowerCase().includes(term);
-    const itemsMatch = order.items && order.items.some(i => (i.name || '').toLowerCase().includes(term));
-    const tableMatch = (order.table_number || '').toString().toLowerCase().includes(term);
-    return orderIdStr.includes(term) || branchOrderIdStr.includes(term) || billNoStr.includes(term) || nameMatch || phoneMatch || itemsMatch || tableMatch;
-  });
+      if (!searchTerm.trim()) return true;
+      const term = searchTerm.toLowerCase().trim();
+      const orderIdStr = (order.order_id || '').toString().toLowerCase();
+      const branchOrderIdStr = (order.branch_order_id || '').toString().toLowerCase();
+      const billNoStr = (order.bill_no || '').toString().toLowerCase();
+      const cust = getCustomerDetails(order);
+      const nameMatch = cust.name.toLowerCase().includes(term);
+      const phoneMatch = cust.phone.toLowerCase().includes(term);
+      const itemsMatch = order.items && order.items.some(i => (i.name || '').toLowerCase().includes(term));
+      const tableMatch = (order.table_number || '').toString().toLowerCase().includes(term);
+      return orderIdStr.includes(term) || branchOrderIdStr.includes(term) || billNoStr.includes(term) || nameMatch || phoneMatch || itemsMatch || tableMatch;
+    });
+  }, [orders, orderMode, searchTerm]);
   const activeDineInOrdersCount = orders.filter(o => isDineIn(o) && o.status !== 'SERVED').length;
   const activeTakeawayOrdersCount = orders.filter(o => isTakeaway(o) && o.status !== 'SERVED').length;
   const activeDeliveryOrdersCount = orders.filter(o => isDelivery(o) && o.status !== 'SERVED').length;
@@ -617,6 +662,15 @@ const OrdersManagement = () => {
       `}</style>
       <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', padding: '4px', background: 'rgba(0,0,0,0.04)', borderRadius: '24px', width: 'fit-content' }}>
         <button 
+          onClick={() => setOrderMode('ALL')}
+          style={{ display: 'flex', alignItems: 'center', padding: '8px 24px', borderRadius: '20px', border: 'none', background: orderMode === 'ALL' ? 'white' : 'transparent', color: orderMode === 'ALL' ? '#111' : '#666', fontWeight: '700', fontSize: '14px', cursor: 'pointer', boxShadow: orderMode === 'ALL' ? '0 2px 8px rgba(0,0,0,0.05)' : 'none', transition: 'all 0.2s' }}
+        >
+          All Orders
+          {orderMode !== 'ALL' && (activeDineInOrdersCount + activeTakeawayOrdersCount + activeDeliveryOrdersCount) > 0 && (
+            <span className="blinking-badge">{activeDineInOrdersCount + activeTakeawayOrdersCount + activeDeliveryOrdersCount}</span>
+          )}
+        </button>
+        <button 
           onClick={() => setOrderMode('DINE_IN')}
           style={{ display: 'flex', alignItems: 'center', padding: '8px 24px', borderRadius: '20px', border: 'none', background: orderMode === 'DINE_IN' ? 'white' : 'transparent', color: orderMode === 'DINE_IN' ? '#111' : '#666', fontWeight: '700', fontSize: '14px', cursor: 'pointer', boxShadow: orderMode === 'DINE_IN' ? '0 2px 8px rgba(0,0,0,0.05)' : 'none', transition: 'all 0.2s' }}
         >
@@ -700,10 +754,7 @@ const OrdersManagement = () => {
           width: '100%'
         }}>
           {currentColumns.map(column => {
-            const count = filteredOrders.filter(o => {
-              if (column.id === 'PENDING') return o.status === 'PENDING' || o.status === 'CONFIRMED';
-              return o.status === column.id;
-            }).length;
+            const count = filteredOrders.filter(o => isOrderInColumn(o, column.id)).length;
             const isActive = activeMobileTab === column.id;
             const Icon = column.icon;
             return (
@@ -720,13 +771,14 @@ const OrdersManagement = () => {
                   gap: '8px',
                   cursor: 'pointer',
                   whiteSpace: 'nowrap',
-                  flexShrink: 0
+                  flex: 1,
+                  justifyContent: 'center'
                 }}
               >
-                <Icon size={14} color={isActive ? 'white' : '#ffb300'} />
-                <span style={{ fontSize: '12px', fontWeight: '700', color: isActive ? 'white' : '#111' }}>{column.title}</span>
+                <Icon size={15} color={isActive ? 'white' : column.color} />
+                <span style={{ fontSize: '13px', fontWeight: '800', color: isActive ? 'white' : '#111' }}>{column.title}</span>
                 {count > 0 && (
-                  <span style={{ background: isActive ? '#333' : '#eee', color: isActive ? 'white' : '#888', padding: '2px 8px', borderRadius: '12px', fontSize: '10px', fontWeight: 'bold' }}>{count}</span>
+                  <span style={{ background: isActive ? '#333' : '#eee', color: isActive ? 'white' : '#111', padding: '2px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: '800' }}>{count}</span>
                 )}
               </div>
             );
@@ -734,10 +786,7 @@ const OrdersManagement = () => {
         </div>
 
         <div className="manager-orders-grid" style={{ paddingTop: '8px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '12px' }}>
-          {filteredOrders.filter(o => {
-            if (activeMobileTab === 'PENDING') return o.status === 'PENDING' || o.status === 'CONFIRMED';
-            return o.status === activeMobileTab;
-          }).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).map(order => {
+          {filteredOrders.filter(o => isOrderInColumn(o, activeMobileTab)).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).map(order => {
             const paymentInfo = getPaymentDisplayInfo(order);
             const customerDetails = getCustomerDetails(order);
             return (
@@ -753,66 +802,89 @@ const OrdersManagement = () => {
               minWidth: 0,
               marginBottom: '12px'
             }}>
-              {/* Header row: Order ID + Payment badge on left, Exact Placed Time & Ago on right */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px', gap: '8px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                  <span style={{ color: paymentInfo.orderIdColor, fontWeight: '800', fontSize: '15px' }}>
-                    #{order.branch_order_id || order.order_id}
-                  </span>
-                  {order.bill_no ? (
-                    <span style={{
-                      fontSize: '11px',
-                      fontWeight: '800',
-                      padding: '2px 8px',
-                      borderRadius: '8px',
-                      background: '#ecfdf5',
-                      color: '#047857',
-                      border: '1px solid #a7f3d0',
-                      display: 'inline-flex',
-                      alignItems: 'center'
-                    }}>
-                      Bill #{order.bill_no}
-                    </span>
-                  ) : null}
-                  <span style={{
-                    fontSize: '10px',
-                    fontWeight: '700',
-                    padding: '3px 8px',
-                    borderRadius: '12px',
-                    background: paymentInfo.badgeBg,
-                    color: paymentInfo.badgeColor,
-                    border: paymentInfo.badgeBorder,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '4px'
-                  }}>
-                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: paymentInfo.themeColor }} />
-                    {paymentInfo.badgeText}
-                  </span>
-                </div>
-                
-                {/* Placed Time & Relative Elapsed Time */}
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px', flexShrink: 0 }}>
+              {/* Header: Centered Extra-Large Bill Number & Time Below */}
+              <div style={{ 
+                display: 'flex', 
+                flexDirection: 'column', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                marginBottom: '12px', 
+                gap: '6px' 
+              }}>
+                <span style={{
+                  fontSize: '24px',
+                  fontWeight: '900',
+                  letterSpacing: '0.5px',
+                  padding: '4px 16px',
+                  borderRadius: '10px',
+                  background: paymentInfo.isPaid ? '#dcfce7' : '#fee2e2',
+                  color: paymentInfo.isPaid ? '#14532d' : '#991b1b',
+                  border: `2px solid ${paymentInfo.isPaid ? '#86efac' : '#fca5a5'}`,
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.06)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  textAlign: 'center'
+                }}>
+                  Bill #{order.bill_no || order.branch_order_id || order.order_id}
+                </span>
+
+                {/* Placed Time & Relative Elapsed Time below Bill Number */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', flexWrap: 'wrap' }}>
                   <span style={{ 
                     background: 'white', 
                     color: '#0f172a', 
-                    border: '1px solid rgba(0,0,0,0.1)',
-                    padding: '2px 8px', 
+                    border: '1px solid rgba(0,0,0,0.15)',
+                    padding: '2px 10px', 
                     borderRadius: '8px', 
-                    fontSize: '11px', 
-                    fontWeight: '800',
+                    fontSize: '12px', 
+                    fontWeight: '900',
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: '4px',
+                    gap: '5px',
                     boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
                     whiteSpace: 'nowrap'
                   }} title={`Ordered at ${formatOrderTime(order.created_at)}`}>
-                    <Clock size={11} color="#64748b" />
+                    <Clock size={12} color="#334155" />
                     {formatOrderTime(order.created_at) || 'Just now'}
                   </span>
-                  <span style={{ fontSize: '10px', color: '#64748b', fontWeight: '600' }}>
+                  <span style={{ fontSize: '11px', color: '#475569', fontWeight: '800' }}>
                     {timeAgo(order.created_at)}
                   </span>
+                  {order.status === 'PREPARING' && (
+                    <span style={{
+                      background: '#fef3c7',
+                      color: '#b45309',
+                      border: '1px solid #fcd34d',
+                      padding: '2px 8px',
+                      borderRadius: '12px',
+                      fontSize: '11px',
+                      fontWeight: '900',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}>
+                      <ChefHat size={11} color="#b45309" />
+                      Preparing
+                    </span>
+                  )}
+                  {order.status === 'READY' && (
+                    <span style={{
+                      background: '#dcfce7',
+                      color: '#15803d',
+                      border: '1px solid #86efac',
+                      padding: '2px 8px',
+                      borderRadius: '12px',
+                      fontSize: '11px',
+                      fontWeight: '900',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}>
+                      <CheckCircle2 size={11} color="#15803d" />
+                      Ready
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -844,9 +916,9 @@ const OrdersManagement = () => {
                     <User size={12} />
                   </div>
                   <span style={{ 
-                    fontSize: '12px', 
-                    fontWeight: '800', 
-                    color: '#1e293b', 
+                    fontSize: '13px', 
+                    fontWeight: '900', 
+                    color: '#0f172a', 
                     overflow: 'hidden', 
                     textOverflow: 'ellipsis', 
                     whiteSpace: 'nowrap' 
@@ -868,8 +940,8 @@ const OrdersManagement = () => {
                       background: '#fff7ed',
                       border: '1px solid #fed7aa',
                       color: '#c2410c',
-                      fontSize: '11px',
-                      fontWeight: '700',
+                      fontSize: '12px',
+                      fontWeight: '800',
                       textDecoration: 'none',
                       flexShrink: 0,
                       boxShadow: '0 1px 2px rgba(0,0,0,0.04)'
@@ -881,85 +953,73 @@ const OrdersManagement = () => {
                   </a>
                 )}
               </div>
-              <div style={{ fontSize: '12px', fontWeight: '600', color: '#111', marginBottom: '12px', lineHeight: '1.5', flex: 1 }}>
+              <div style={{ fontSize: '14px', fontWeight: '800', color: '#0f172a', marginBottom: '12px', lineHeight: '1.5', flex: 1 }}>
                 {order.items?.map(i => `${i.name} x${i.quantity}`).join(', ')}
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', borderBottom: `1px dashed ${paymentInfo.badgeBorder}`, paddingBottom: '12px' }}>
-                <span style={{ fontSize: '11px', color: '#888', fontWeight: '500' }}>
+                <span style={{ fontSize: '13px', color: '#1e293b', fontWeight: '800' }}>
                   {isDelivery(order) ? 'Delivery' : isTakeaway(order) ? 'Takeaway' : `Table ${order.table_number}`}
                 </span>
-                <span style={{ fontSize: '14px', fontWeight: '800', color: paymentInfo.amountColor }}>₹ {order.total_amount}</span>
-              </div>
-              {/* Paid / Unpaid verification control */}
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '4px 8px',
-                borderRadius: '16px',
-                background: paymentInfo.isPaid ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                border: `1px solid ${paymentInfo.isPaid ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
-                marginBottom: '10px'
-              }}>
-                <span style={{ fontSize: '10px', fontWeight: '700', color: paymentInfo.isPaid ? '#15803d' : '#b91c1c', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: paymentInfo.isPaid ? '#22c55e' : '#ef4444' }} />
-                  {paymentInfo.isPaid ? 'PAID' : 'UNPAID'}
-                </span>
-
-                <div style={{ display: 'inline-flex', borderRadius: '12px', background: 'white', padding: '2px', border: '1px solid rgba(0,0,0,0.08)' }}>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (!paymentInfo.isPaid) updatePaymentStatus(order.order_id, true);
-                    }}
-                    style={{
-                      padding: '2px 8px',
-                      borderRadius: '10px',
-                      border: 'none',
-                      fontSize: '10px',
-                      fontWeight: '700',
-                      cursor: paymentInfo.isPaid ? 'default' : 'pointer',
-                      background: paymentInfo.isPaid ? '#16a34a' : 'transparent',
-                      color: paymentInfo.isPaid ? 'white' : '#666',
-                      transition: 'all 0.15s ease'
-                    }}
-                  >
-                    ✓ Paid
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (paymentInfo.isPaid) updatePaymentStatus(order.order_id, false);
-                    }}
-                    style={{
-                      padding: '2px 8px',
-                      borderRadius: '10px',
-                      border: 'none',
-                      fontSize: '10px',
-                      fontWeight: '700',
-                      cursor: !paymentInfo.isPaid ? 'default' : 'pointer',
-                      background: !paymentInfo.isPaid ? '#dc2626' : 'transparent',
-                      color: !paymentInfo.isPaid ? 'white' : '#666',
-                      transition: 'all 0.15s ease'
-                    }}
-                  >
-                    ✕ Unpaid
-                  </button>
-                </div>
+                <span style={{ fontSize: '16px', fontWeight: '900', color: paymentInfo.amountColor }}>₹ {order.total_amount}</span>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                <button onClick={() => setSelectedKOTOrder(order)} style={{ flex: 1, padding: '10px 0', background: '#f5f5f5', border: 'none', borderRadius: '20px', fontSize: '12px', fontWeight: '700', color: '#888', cursor: 'pointer' }}>Details</button>
+              <div 
+                onMouseDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}
+              >
+                <button 
+                  type="button"
+                  draggable={false}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onTouchStart={(e) => e.stopPropagation()}
+                  onClick={(e) => { e.stopPropagation(); setSelectedKOTOrder(order); }}
+                  style={{ flex: 1, padding: '10px 0', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '20px', fontSize: '12px', fontWeight: '800', color: '#334155', cursor: 'pointer', touchAction: 'manipulation', userSelect: 'none' }}
+                >
+                  Details
+                </button>
                 {order.status === 'PENDING' || order.status === 'CONFIRMED' ? (
-                  <button onClick={() => updateOrderStatus(order.order_id, 'PREPARING')} style={{ flex: 1, padding: '10px 0', background: '#ff6b35', border: 'none', borderRadius: '20px', fontSize: '12px', fontWeight: '700', color: 'white' }}>Start Preparing</button>
+                  <button 
+                    type="button"
+                    draggable={false}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onTouchStart={(e) => e.stopPropagation()}
+                    onClick={(e) => { e.stopPropagation(); updateOrderStatus(order.order_id, 'PREPARING'); }}
+                    style={{ flex: 1.5, padding: '10px 0', background: '#ff6b35', border: 'none', borderRadius: '20px', fontSize: '12px', fontWeight: '800', color: 'white', cursor: 'pointer', boxShadow: '0 2px 6px rgba(255,107,53,0.3)', touchAction: 'manipulation', userSelect: 'none' }}
+                  >
+                    Accept & Start Preparing
+                  </button>
                 ) : order.status === 'PREPARING' ? (
-                  <button onClick={() => updateOrderStatus(order.order_id, 'READY')} style={{ flex: 1, padding: '10px 0', background: '#ffb300', border: 'none', borderRadius: '20px', fontSize: '12px', fontWeight: '700', color: 'white' }}>Mark Ready</button>
+                  <button 
+                    type="button"
+                    draggable={false}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onTouchStart={(e) => e.stopPropagation()}
+                    onClick={(e) => { e.stopPropagation(); updateOrderStatus(order.order_id, 'READY'); }}
+                    style={{ flex: 1.5, padding: '10px 0', background: '#16a34a', border: 'none', borderRadius: '20px', fontSize: '12px', fontWeight: '800', color: 'white', cursor: 'pointer', boxShadow: '0 2px 6px rgba(22,163,74,0.3)', touchAction: 'manipulation', userSelect: 'none' }}
+                  >
+                    ✓ Mark Ready
+                  </button>
                 ) : order.status === 'READY' ? (
-                  <button onClick={() => updateOrderStatus(order.order_id, 'SERVED')} style={{ flex: 1, padding: '10px 0', background: '#2d7a4a', border: 'none', borderRadius: '20px', fontSize: '12px', fontWeight: '700', color: 'white' }}>{orderMode === 'TAKEAWAY' ? 'Mark Picked up' : orderMode === 'DELIVERY' ? 'Mark Dispatched' : 'Mark Served'}</button>
+                  <button 
+                    type="button"
+                    draggable={false}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onTouchStart={(e) => e.stopPropagation()}
+                    onClick={(e) => { e.stopPropagation(); updateOrderStatus(order.order_id, 'SERVED'); }}
+                    style={{ flex: 1.5, padding: '10px 0', background: '#2563eb', border: 'none', borderRadius: '20px', fontSize: '12px', fontWeight: '800', color: 'white', cursor: 'pointer', touchAction: 'manipulation', userSelect: 'none' }}
+                  >
+                    {orderMode === 'TAKEAWAY' ? 'Mark Picked up' : orderMode === 'DELIVERY' ? 'Mark Dispatched' : 'Mark Served'}
+                  </button>
                 ) : (
-                  <button style={{ flex: 1, padding: '10px 0', background: '#eee', border: 'none', borderRadius: '20px', fontSize: '12px', fontWeight: '700', color: '#888' }}>{orderMode === 'TAKEAWAY' ? 'Picked up' : orderMode === 'DELIVERY' ? 'Dispatched' : 'Served'}</button>
+                  <button 
+                    type="button"
+                    disabled
+                    style={{ flex: 1.5, padding: '10px 0', background: '#e2e8f0', border: 'none', borderRadius: '20px', fontSize: '12px', fontWeight: '800', color: '#64748b', cursor: 'not-allowed', touchAction: 'manipulation', userSelect: 'none' }}
+                  >
+                    {orderMode === 'TAKEAWAY' ? 'Picked up' : orderMode === 'DELIVERY' ? 'Dispatched' : 'Served'}
+                  </button>
                 )}
               </div>
             </div>
@@ -967,13 +1027,11 @@ const OrdersManagement = () => {
         </div>
       </div>
 
-      <div className="desktop-only" style={{ display: 'flex', gap: '24px', flex: 1, overflowX: 'auto', paddingBottom: '16px' }}>
+      <div className="desktop-only" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '24px', flex: 1, paddingBottom: '16px' }}>
         {currentColumns.map(column => {
-          // 'PENDING' also includes 'CONFIRMED'
-          const columnOrders = filteredOrders.filter(o => {
-            if (column.id === 'PENDING') return o.status === 'PENDING' || o.status === 'CONFIRMED';
-            return o.status === column.id;
-          }).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+          const columnOrders = filteredOrders
+            .filter(o => isOrderInColumn(o, column.id))
+            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
           const Icon = column.icon;
 
@@ -981,8 +1039,7 @@ const OrdersManagement = () => {
             <div 
               key={column.id} 
               style={{ 
-                flex: '1', 
-                minWidth: '280px', 
+                minWidth: 0, 
                 display: 'flex', 
                 flexDirection: 'column',
                 gap: '20px',
@@ -1050,65 +1107,89 @@ const OrdersManagement = () => {
                       e.currentTarget.style.boxShadow = paymentInfo.boxShadow;
                     }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                        <span style={{ fontWeight: '800', fontSize: '15px', color: paymentInfo.orderIdColor }}>
-                          #{order.branch_order_id || order.order_id}
-                        </span>
-                        {order.bill_no ? (
-                          <span style={{
-                            fontSize: '11px',
-                            fontWeight: '800',
-                            padding: '2px 8px',
-                            borderRadius: '8px',
-                            background: '#ecfdf5',
-                            color: '#047857',
-                            border: '1px solid #a7f3d0',
-                            display: 'inline-flex',
-                            alignItems: 'center'
-                          }}>
-                            Bill #{order.bill_no}
-                          </span>
-                        ) : null}
-                        <span style={{
-                          fontSize: '11px',
-                          fontWeight: '700',
-                          padding: '3px 8px',
-                          borderRadius: '12px',
-                          background: paymentInfo.badgeBg,
-                          color: paymentInfo.badgeColor,
-                          border: paymentInfo.badgeBorder,
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '5px'
-                        }}>
-                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: paymentInfo.themeColor }} />
-                          {paymentInfo.badgeText}
-                        </span>
-                      </div>
+                    {/* Header: Centered Extra-Large Bill Number & Time Below */}
+                    <div style={{ 
+                      display: 'flex', 
+                      flexDirection: 'column', 
+                      alignItems: 'center', 
+                      justifyContent: 'center', 
+                      marginBottom: '14px', 
+                      gap: '6px' 
+                    }}>
+                      <span style={{
+                        fontSize: '24px',
+                        fontWeight: '900',
+                        letterSpacing: '0.5px',
+                        padding: '4px 16px',
+                        borderRadius: '10px',
+                        background: paymentInfo.isPaid ? '#dcfce7' : '#fee2e2',
+                        color: paymentInfo.isPaid ? '#14532d' : '#991b1b',
+                        border: `2px solid ${paymentInfo.isPaid ? '#86efac' : '#fca5a5'}`,
+                        boxShadow: '0 2px 6px rgba(0,0,0,0.06)',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        textAlign: 'center'
+                      }}>
+                        Bill #{order.bill_no || order.branch_order_id || order.order_id}
+                      </span>
 
-                      {/* Placed Time & Relative Elapsed Time */}
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px', flexShrink: 0 }}>
+                      {/* Placed Time & Relative Elapsed Time below Bill Number */}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', flexWrap: 'wrap' }}>
                         <span style={{ 
-                          fontSize: '11px', 
+                          fontSize: '12px', 
                           background: 'white', 
-                          border: '1px solid rgba(0,0,0,0.1)', 
-                          padding: '2px 8px', 
+                          border: '1px solid rgba(0,0,0,0.15)', 
+                          padding: '2px 10px', 
                           borderRadius: '8px',
                           color: '#0f172a',
-                          fontWeight: '800',
+                          fontWeight: '900',
                           display: 'inline-flex',
                           alignItems: 'center',
-                          gap: '4px',
+                          gap: '5px',
                           boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
                           whiteSpace: 'nowrap'
                         }} title={`Ordered at ${formatOrderTime(order.created_at)}`}>
-                          <Clock size={11} color="#64748b" />
+                          <Clock size={12} color="#334155" />
                           {formatOrderTime(order.created_at) || 'Just now'}
                         </span>
-                        <span style={{ fontSize: '10px', color: '#64748b', fontWeight: '600' }}>
+                        <span style={{ fontSize: '11px', color: '#475569', fontWeight: '800' }}>
                           {timeAgo(order.created_at)}
                         </span>
+                        {order.status === 'PREPARING' && (
+                          <span style={{
+                            background: '#fef3c7',
+                            color: '#b45309',
+                            border: '1px solid #fcd34d',
+                            padding: '2px 8px',
+                            borderRadius: '12px',
+                            fontSize: '11px',
+                            fontWeight: '900',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}>
+                            <ChefHat size={11} color="#b45309" />
+                            Preparing
+                          </span>
+                        )}
+                        {order.status === 'READY' && (
+                          <span style={{
+                            background: '#dcfce7',
+                            color: '#15803d',
+                            border: '1px solid #86efac',
+                            padding: '2px 8px',
+                            borderRadius: '12px',
+                            fontSize: '11px',
+                            fontWeight: '900',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}>
+                            <CheckCircle2 size={11} color="#15803d" />
+                            Ready
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -1143,9 +1224,9 @@ const OrdersManagement = () => {
                               <User size={12} />
                             </div>
                             <span style={{ 
-                              fontSize: '12px', 
-                              fontWeight: '800', 
-                              color: '#1e293b', 
+                              fontSize: '13px', 
+                              fontWeight: '900', 
+                              color: '#0f172a', 
                               overflow: 'hidden', 
                               textOverflow: 'ellipsis', 
                               whiteSpace: 'nowrap' 
@@ -1167,8 +1248,8 @@ const OrdersManagement = () => {
                                 background: '#fff7ed',
                                 border: '1px solid #fed7aa',
                                 color: '#c2410c',
-                                fontSize: '11px',
-                                fontWeight: '700',
+                                fontSize: '12px',
+                                fontWeight: '800',
                                 textDecoration: 'none',
                                 flexShrink: 0,
                                 boxShadow: '0 1px 2px rgba(0,0,0,0.04)'
@@ -1184,9 +1265,9 @@ const OrdersManagement = () => {
                     })()}
 
                     <div style={{ 
-                      fontSize: '13px', 
-                      color: 'var(--text-dark)', 
-                      fontWeight: '600', 
+                      fontSize: '14px', 
+                      color: '#0f172a', 
+                      fontWeight: '800', 
                       marginBottom: '16px', 
                       lineHeight: '1.6' 
                     }}>
@@ -1201,101 +1282,87 @@ const OrdersManagement = () => {
                       paddingTop: '8px',
                       borderTop: `1px dashed ${paymentInfo.badgeBorder}`
                     }}>
-                      <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '600' }}>
+                      <span style={{ fontSize: '13px', color: '#1e293b', fontWeight: '800' }}>
                         {isDelivery(order) ? 'Delivery' : isTakeaway(order) ? 'Takeaway' : `Table ${order.table_number}`}
                       </span>
-                      <span style={{ fontSize: '15px', fontWeight: '800', color: paymentInfo.amountColor }}>₹ {order.total_amount}</span>
+                      <span style={{ fontSize: '16px', fontWeight: '900', color: paymentInfo.amountColor }}>₹ {order.total_amount}</span>
                     </div>
 
-                    <div style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '8px'
-                    }}>
-                      {/* Paid / Unpaid verification control */}
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '6px 12px',
-                        borderRadius: '20px',
-                        background: paymentInfo.isPaid ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                        border: `1px solid ${paymentInfo.isPaid ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
-                      }}>
-                        <span style={{ fontSize: '11px', fontWeight: '700', color: paymentInfo.isPaid ? '#15803d' : '#b91c1c', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                          <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: paymentInfo.isPaid ? '#22c55e' : '#ef4444' }} />
-                          Payment: {paymentInfo.isPaid ? 'PAID' : 'UNPAID'}
-                        </span>
-
-                        <div style={{ display: 'inline-flex', borderRadius: '14px', background: 'white', padding: '2px', border: '1px solid rgba(0,0,0,0.08)' }}>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (!paymentInfo.isPaid) updatePaymentStatus(order.order_id, true);
-                            }}
-                            style={{
-                              padding: '3px 10px',
-                              borderRadius: '12px',
-                              border: 'none',
-                              fontSize: '11px',
-                              fontWeight: '700',
-                              cursor: paymentInfo.isPaid ? 'default' : 'pointer',
-                              background: paymentInfo.isPaid ? '#16a34a' : 'transparent',
-                              color: paymentInfo.isPaid ? 'white' : '#666',
-                              transition: 'all 0.15s ease',
-                              boxShadow: paymentInfo.isPaid ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
-                            }}
-                          >
-                            ✓ Paid
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (paymentInfo.isPaid) updatePaymentStatus(order.order_id, false);
-                            }}
-                            style={{
-                              padding: '3px 10px',
-                              borderRadius: '12px',
-                              border: 'none',
-                              fontSize: '11px',
-                              fontWeight: '700',
-                              cursor: !paymentInfo.isPaid ? 'default' : 'pointer',
-                              background: !paymentInfo.isPaid ? '#dc2626' : 'transparent',
-                              color: !paymentInfo.isPaid ? 'white' : '#666',
-                              transition: 'all 0.15s ease',
-                              boxShadow: !paymentInfo.isPaid ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
-                            }}
-                          >
-                            ✕ Unpaid
-                          </button>
-                        </div>
-                      </div>
-
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                        <button onClick={() => setSelectedKOTOrder(order)} style={{ flex: 1, padding: '8px 0', borderRadius: '24px', border: '1px solid #e0e0e0', background: 'transparent', fontSize: '11px', fontWeight: '600', color: '#666', cursor: 'pointer' }}>
-                          Details
+                    <div 
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onTouchStart={(e) => e.stopPropagation()}
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}
+                    >
+                      <button 
+                        type="button"
+                        draggable={false}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onTouchStart={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedKOTOrder(order);
+                        }} 
+                        style={{ flex: 1, padding: '10px 0', borderRadius: '24px', border: '1px solid #cbd5e1', background: '#f8fafc', fontSize: '12px', fontWeight: '800', color: '#334155', cursor: 'pointer', touchAction: 'manipulation', userSelect: 'none' }}
+                      >
+                        Details
+                      </button>
+                      
+                      {order.status === 'PENDING' || order.status === 'CONFIRMED' ? (
+                        <button 
+                          type="button"
+                          draggable={false}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onTouchStart={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            updateOrderStatus(order.order_id, 'PREPARING');
+                          }} 
+                          style={{ flex: 1.5, padding: '10px 0', borderRadius: '24px', border: 'none', background: '#ff6b35', fontSize: '12px', fontWeight: '800', color: '#fff', cursor: 'pointer', boxShadow: '0 2px 6px rgba(255,107,53,0.3)', touchAction: 'manipulation', userSelect: 'none' }}
+                        >
+                          Accept & Start Preparing
                         </button>
-                        
-                        {order.status === 'PENDING' || order.status === 'CONFIRMED' ? (
-                          <button onClick={() => updateOrderStatus(order.order_id, 'PREPARING')} style={{ flex: 1, padding: '8px 0', borderRadius: '24px', border: 'none', background: '#ff6b35', fontSize: '11px', fontWeight: '600', color: '#fff', cursor: 'pointer' }}>
-                            Start Preparing
-                          </button>
-                        ) : order.status === 'PREPARING' ? (
-                          <button onClick={() => updateOrderStatus(order.order_id, 'READY')} style={{ flex: 1, padding: '8px 0', borderRadius: '24px', border: 'none', background: '#ff6b35', fontSize: '11px', fontWeight: '600', color: '#fff', cursor: 'pointer' }}>
-                            Mark Ready
-                          </button>
-                        ) : order.status === 'READY' ? (
-                          <button onClick={() => updateOrderStatus(order.order_id, 'SERVED')} style={{ flex: 1, padding: '8px 0', borderRadius: '24px', border: 'none', background: '#ff6b35', fontSize: '11px', fontWeight: '600', color: '#fff', cursor: 'pointer' }}>
-                            {orderMode === 'TAKEAWAY' ? 'Mark Picked up' : orderMode === 'DELIVERY' ? 'Mark Dispatched' : 'Mark Served'}
-                          </button>
-                        ) : (
-                          <button style={{ flex: 1, padding: '8px 0', borderRadius: '24px', border: 'none', background: '#e0e0e0', fontSize: '11px', fontWeight: '600', color: '#666', cursor: 'not-allowed' }}>
-                            {orderMode === 'TAKEAWAY' ? 'Picked up' : orderMode === 'DELIVERY' ? 'Dispatched' : 'Completed'}
-                          </button>
-                        )}
-                      </div>
+                      ) : order.status === 'PREPARING' ? (
+                        <button 
+                          type="button"
+                          draggable={false}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onTouchStart={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            updateOrderStatus(order.order_id, 'READY');
+                          }} 
+                          style={{ flex: 1.5, padding: '10px 0', borderRadius: '24px', border: 'none', background: '#16a34a', fontSize: '12px', fontWeight: '800', color: '#fff', cursor: 'pointer', boxShadow: '0 2px 6px rgba(22,163,74,0.3)', touchAction: 'manipulation', userSelect: 'none' }}
+                        >
+                          ✓ Mark Ready
+                        </button>
+                      ) : order.status === 'READY' ? (
+                        <button 
+                          type="button"
+                          draggable={false}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onTouchStart={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            updateOrderStatus(order.order_id, 'SERVED');
+                          }} 
+                          style={{ flex: 1.5, padding: '10px 0', borderRadius: '24px', border: 'none', background: '#2563eb', fontSize: '12px', fontWeight: '800', color: '#fff', cursor: 'pointer', touchAction: 'manipulation', userSelect: 'none' }}
+                        >
+                          {orderMode === 'TAKEAWAY' ? 'Mark Picked up' : orderMode === 'DELIVERY' ? 'Mark Dispatched' : 'Mark Served'}
+                        </button>
+                      ) : (
+                        <button 
+                          type="button"
+                          disabled
+                          style={{ flex: 1.5, padding: '10px 0', borderRadius: '24px', border: 'none', background: '#e2e8f0', fontSize: '12px', fontWeight: '800', color: '#64748b', cursor: 'not-allowed', touchAction: 'manipulation', userSelect: 'none' }}
+                        >
+                          {orderMode === 'TAKEAWAY' ? 'Picked up' : orderMode === 'DELIVERY' ? 'Dispatched' : 'Completed'}
+                        </button>
+                      )}
                     </div>
                   </div>
                 ); })}
@@ -1320,65 +1387,55 @@ const OrdersManagement = () => {
             <div style={{ textAlign: 'center', fontWeight: '900', fontSize: '17px', letterSpacing: '2px', marginBottom: '6px' }}>KITCHEN ORDER TICKET</div>
             <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '13px', letterSpacing: '4px', color: '#64748b', marginBottom: '14px' }}>* * * KOT * * *</div>
             
-            {/* Prominent Verification Box: Order No + Bill No */}
+            {/* Prominent Verification Box: Highlighted Bill No */}
             <div style={{ borderTop: '1px dashed #aaa', margin: '10px 0' }}></div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', margin: '12px 0' }}>
-              <div style={{ textAlign: 'center', padding: '10px 6px', background: '#ffffff', borderRadius: '8px', border: '1px solid #cbd5e1', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>Order No</div>
-                <div style={{ fontSize: '24px', fontWeight: '900', color: '#0f172a' }}>
-                  #{selectedKOTOrder.branch_order_id || selectedKOTOrder.order_id}
-                </div>
-              </div>
-              <div style={{ textAlign: 'center', padding: '10px 6px', background: '#f0fdf4', borderRadius: '8px', border: '1px solid #86efac', boxShadow: '0 1px 3px rgba(34,197,94,0.1)' }}>
-                <div style={{ fontSize: '11px', fontWeight: '700', color: '#166534', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>Bill No</div>
-                <div style={{ fontSize: '24px', fontWeight: '900', color: '#15803d' }}>
+            <div style={{ margin: '12px 0' }}>
+              <div style={{ textAlign: 'center', padding: '12px 8px', background: '#f0fdf4', borderRadius: '10px', border: '2px solid #86efac', boxShadow: '0 2px 6px rgba(34,197,94,0.15)' }}>
+                <div style={{ fontSize: '12px', fontWeight: '800', color: '#166534', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px' }}>Bill Number</div>
+                <div style={{ fontSize: '28px', fontWeight: '900', color: '#15803d', letterSpacing: '0.5px' }}>
                   {selectedKOTOrder.bill_no ? `#${selectedKOTOrder.bill_no}` : `#${selectedKOTOrder.branch_order_id || selectedKOTOrder.order_id}`}
                 </div>
               </div>
             </div>
             
             <div style={{ borderTop: '1px dashed #aaa', margin: '12px 0' }}></div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px', fontWeight: '600' }}>
-              <span>Order Number</span>
-              <span style={{ fontWeight: '800' }}>#{selectedKOTOrder.branch_order_id || selectedKOTOrder.order_id}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px', fontWeight: '600' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '14px', fontWeight: '800' }}>
               <span>Bill Number</span>
-              <span style={{ fontWeight: '800', color: '#15803d' }}>
+              <span style={{ fontWeight: '900', color: '#15803d', background: '#ecfdf5', padding: '2px 8px', borderRadius: '6px', border: '1px solid #a7f3d0' }}>
                 {selectedKOTOrder.bill_no ? `#${selectedKOTOrder.bill_no}` : `#${selectedKOTOrder.branch_order_id || selectedKOTOrder.order_id}`}
               </span>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px', fontWeight: '600' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px', fontWeight: '800' }}>
               <span>Date</span>
-              <span>{new Date(selectedKOTOrder.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+              <span style={{ fontWeight: '800' }}>{new Date(selectedKOTOrder.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px', fontWeight: '600' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px', fontWeight: '800' }}>
               <span>Time</span>
-              <span>{new Date(selectedKOTOrder.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
+              <span style={{ fontWeight: '800' }}>{new Date(selectedKOTOrder.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px', fontWeight: '600' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px', fontWeight: '800' }}>
               <span>Customer</span>
-              <span>{getCustomerDetails(selectedKOTOrder).name}</span>
+              <span style={{ fontWeight: '900' }}>{getCustomerDetails(selectedKOTOrder).name}</span>
             </div>
             {getCustomerDetails(selectedKOTOrder).phone && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px', fontWeight: '600' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px', fontWeight: '800' }}>
                 <span>Phone</span>
-                <span>{getCustomerDetails(selectedKOTOrder).phone}</span>
+                <span style={{ fontWeight: '800' }}>{getCustomerDetails(selectedKOTOrder).phone}</span>
               </div>
             )}
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px', fontWeight: '600' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px', fontWeight: '800' }}>
               <span>Table</span>
-              <span>{isDelivery(selectedKOTOrder) ? 'Delivery' : isTakeaway(selectedKOTOrder) ? 'Takeaway' : `T${selectedKOTOrder.table_number.toString().padStart(2, '0')}`}</span>
+              <span style={{ fontWeight: '900' }}>{isDelivery(selectedKOTOrder) ? 'Delivery' : isTakeaway(selectedKOTOrder) ? 'Takeaway' : `T${selectedKOTOrder.table_number.toString().padStart(2, '0')}`}</span>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px', fontSize: '13px', fontWeight: '600' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px', fontSize: '13px', fontWeight: '800' }}>
               <span>Type</span>
-              <span>{isDelivery(selectedKOTOrder) ? 'Delivery' : isTakeaway(selectedKOTOrder) ? 'Takeaway' : 'Dine-In'}</span>
+              <span style={{ fontWeight: '900' }}>{isDelivery(selectedKOTOrder) ? 'Delivery' : isTakeaway(selectedKOTOrder) ? 'Takeaway' : 'Dine-In'}</span>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px', fontSize: '13px', fontWeight: '600' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px', fontSize: '13px', fontWeight: '800' }}>
               <span>Payment</span>
               <span style={{ 
                 color: getPaymentDisplayInfo(selectedKOTOrder).themeColor, 
-                fontWeight: 'bold',
+                fontWeight: '900',
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '5px'

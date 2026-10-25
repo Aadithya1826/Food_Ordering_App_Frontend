@@ -348,6 +348,24 @@ function CashierDashboard() {
     api.post(`/api/v1/orders?restaurant_id=${user?.restaurant_id}`, payload)
       .then(res => {
         toast.success(`Order placed successfully! ID: ${res.data.orderId || 'Unknown'}`);
+        // 0-SECOND INSTANT KDS SYNC BROADCAST
+        try {
+          const syncPing = {
+            type: 'ORDER_PLACED',
+            orderId: res.data.orderId,
+            billNo: res.data.bill_no || billNo,
+            restaurantId: user?.restaurant_id,
+            timestamp: Date.now()
+          };
+          if (typeof BroadcastChannel !== 'undefined') {
+            const bc = new BroadcastChannel('udipi_kds_sync_channel');
+            bc.postMessage(syncPing);
+            bc.close();
+          }
+          localStorage.setItem('kds_instant_sync_ping', JSON.stringify(syncPing));
+        } catch (syncErr) {
+          console.warn('KDS broadcast sync error:', syncErr);
+        }
       })
       .catch(err => {
         console.error('Error placing order:', err);
