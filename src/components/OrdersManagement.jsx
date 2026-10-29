@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Clock, ChefHat, CheckCircle2, Truck, Search, SlidersHorizontal, Bell, BellOff, Volume2, User, Phone } from 'lucide-react';
+import { Clock, ChefHat, CheckCircle2, Truck, Search, SlidersHorizontal, Bell, BellOff, Volume2, User, Phone, Copy, Check, MapPin } from 'lucide-react';
 import { orderService } from '../services/api';
 import { kotAudio, ringKOTOrders, stopKOTRinging, unlockKOTAudio } from '../utils/kotAudio';
 
@@ -27,8 +27,44 @@ const OrdersManagement = () => {
   const [orderMode, setOrderMode] = useState('ALL'); // 'ALL' | 'DINE_IN' | 'TAKEAWAY' | 'DELIVERY'
   const [ringingInfo, setRingingInfo] = useState({ isRinging: false, remainingCount: 0, isUnlocked: false });
   const [searchTerm, setSearchTerm] = useState('');
+  const [copiedOrderId, setCopiedOrderId] = useState(null);
   const knownOrderIdsRef = useRef(null);
   const pendingUpdatesRef = useRef(new Map());
+
+  // Copy address to clipboard with fallback for non-secure / webview contexts
+  const handleCopyAddress = (textToCopy, orderId) => {
+    if (!textToCopy) return;
+    const onSuccess = () => {
+      setCopiedOrderId(orderId);
+      setTimeout(() => setCopiedOrderId(null), 2500);
+    };
+
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText(textToCopy).then(onSuccess).catch(() => {
+        fallbackCopy(textToCopy, onSuccess);
+      });
+    } else {
+      fallbackCopy(textToCopy, onSuccess);
+    }
+  };
+
+  const fallbackCopy = (text, onSuccess) => {
+    try {
+      const el = document.createElement('textarea');
+      el.value = text;
+      el.setAttribute('readonly', '');
+      el.style.position = 'fixed';
+      el.style.top = '-9999px';
+      el.style.left = '-9999px';
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand('copy');
+      document.body.removeChild(el);
+      if (onSuccess) onSuccess();
+    } catch (err) {
+      console.error('Failed to copy text:', err);
+    }
+  };
 
   // Subscribe to KOT audio controller state
   useEffect(() => {
@@ -52,7 +88,11 @@ const OrdersManagement = () => {
   }, []);
 
   const isDelivery = (order) => {
-    return order.order_type?.toLowerCase() === 'delivery';
+    if (!order) return false;
+    const type = (order.order_type || '').toLowerCase();
+    if (type === 'delivery' || type.includes('deliv')) return true;
+    if (order.delivery_address || order.delivery_address_snapshot) return true;
+    return false;
   };
 
   const isTakeaway = (order) => {
@@ -301,31 +341,35 @@ const OrdersManagement = () => {
     let phone = (order?.customer_phone || '').trim();
 
     let deliveryObj = null;
-    if (order?.delivery_address) {
-      if (typeof order.delivery_address === 'string') {
-        try {
-          deliveryObj = JSON.parse(order.delivery_address);
-        } catch (e) {
-          deliveryObj = null;
+    const rawDelivery = order?.delivery_address || order?.delivery_address_snapshot || order?.address;
+    if (rawDelivery) {
+      if (typeof rawDelivery === 'string') {
+        const trimmed = rawDelivery.trim();
+        if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+          try {
+            deliveryObj = JSON.parse(trimmed);
+          } catch (e) {
+            deliveryObj = null;
+          }
         }
-      } else if (typeof order.delivery_address === 'object') {
-        deliveryObj = order.delivery_address;
+      } else if (typeof rawDelivery === 'object' && rawDelivery !== null) {
+        deliveryObj = rawDelivery;
       }
     }
 
     if (deliveryObj) {
-      if (!name || name === 'Guest' || name === phone) {
+      if (!name || name === 'Guest' || name === phone || name === 'None' || name === 'Delivery Guest') {
         const addrName = deliveryObj.contact_name || deliveryObj.name;
         if (addrName) name = addrName.trim();
       }
-      if (!phone) {
+      if (!phone || phone === '-') {
         const addrPhone = deliveryObj.contact_phone || deliveryObj.phone;
         if (addrPhone) phone = addrPhone.trim();
       }
     }
 
     if (!name || name === 'None') {
-      if (phone) {
+      if (phone && phone !== '-') {
         name = 'Customer';
       } else if (order?.table_number && !isTakeaway(order) && !isDelivery(order)) {
         name = `Table ${order.table_number}`;
@@ -335,6 +379,101 @@ const OrdersManagement = () => {
     }
 
     return { name, phone };
+  };
+
+  // Helper to extract comprehensive delivery details for delivery orders
+  const getDeliveryDetails = (order) => {
+    if (!order) return null;
+
+    const raw = order.delivery_address || order.delivery_address_snapshot || order.address || null;
+    let parsed = null;
+    let rawString = '';
+
+    if (raw) {
+      if (typeof raw === 'string') {
+        const trimmed = raw.trim();
+        if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+          try {
+            parsed = JSON.parse(trimmed);
+          } catch (e) {
+            parsed = null;
+            rawString = trimmed;
+          }
+        } else {
+          rawString = trimmed;
+        }
+      } else if (typeof raw === 'object' && raw !== null) {
+        parsed = raw;
+      }
+    }
+
+    // Customer Name & Phone
+    let name = (order.customer_name || '').trim();
+    if (!name || name === 'Guest' || name === 'None' || name === 'Delivery Guest') {
+      name = (parsed?.contact_name || parsed?.name || '').trim();
+    }
+    if (!name) name = 'Delivery Customer';
+
+    let phone = (order.customer_phone || '').trim();
+    if (!phone || phone === '-') {
+      phone = (parsed?.contact_phone || parsed?.phone || '').trim();
+    }
+
+    // Full Address
+    let fullAddress = '';
+    if (parsed) {
+      if (typeof parsed.full_address === 'string' && parsed.full_address.trim()) {
+        fullAddress = parsed.full_address.trim();
+      } else if (typeof parsed.address === 'string' && parsed.address.trim()) {
+        fullAddress = parsed.address.trim();
+      } else {
+        const parts = [
+          parsed.flat_house_no,
+          parsed.floor ? `Floor ${parsed.floor}` : '',
+          parsed.building_apartment_name,
+          parsed.landmark ? `Near ${parsed.landmark}` : '',
+          parsed.city,
+          parsed.state,
+          parsed.pincode
+        ].filter(Boolean);
+        if (parts.length > 0) {
+          fullAddress = parts.join(', ');
+        }
+      }
+    }
+    if (!fullAddress && rawString) {
+      fullAddress = rawString;
+    }
+
+    const landmark = (parsed?.landmark || '').trim();
+    const addressType = (parsed?.address_type || parsed?.type || '').trim();
+    const instructions = (
+      order.delivery_instructions || 
+      parsed?.delivery_instructions || 
+      parsed?.instructions || 
+      order.notes || 
+      ''
+    ).trim();
+    const deliveryFee = order.delivery_fee != null ? order.delivery_fee : (parsed?.delivery_fee != null ? parsed.delivery_fee : null);
+    const deliveryStatus = order.delivery_status || parsed?.delivery_status || null;
+
+    let copyableAddress = fullAddress || '';
+    if (landmark && !copyableAddress.toLowerCase().includes(landmark.toLowerCase())) {
+      copyableAddress = copyableAddress ? `${copyableAddress}, Landmark: ${landmark}` : `Landmark: ${landmark}`;
+    }
+
+    return {
+      name,
+      phone,
+      fullAddress,
+      copyableAddress: copyableAddress.trim(),
+      landmark,
+      addressType,
+      instructions,
+      deliveryFee,
+      deliveryStatus,
+      rawObj: parsed
+    };
   };
 
   // Helper to format time ago
@@ -655,7 +794,8 @@ const OrdersManagement = () => {
             border: none !important;
             padding: 0 !important;
           }
-          .kot-ticket-content button {
+          .kot-ticket-content button,
+          .no-print {
             display: none !important;
           }
         }
@@ -953,6 +1093,77 @@ const OrdersManagement = () => {
                   </a>
                 )}
               </div>
+
+              {/* Delivery Address snippet with 1-click Copy */}
+              {isDelivery(order) && (() => {
+                const dDetails = getDeliveryDetails(order);
+                if (!dDetails || !dDetails.fullAddress) return null;
+                const isCardCopied = copiedOrderId === (order.order_id || order.id);
+                return (
+                  <div 
+                    onClick={(e) => e.stopPropagation()}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '6px',
+                      background: '#f8fafc',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '8px',
+                      padding: '5px 8px',
+                      marginBottom: '10px',
+                      fontSize: '11px'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0, flex: 1 }}>
+                      <MapPin size={11} color="#ea580c" style={{ flexShrink: 0 }} />
+                      <span 
+                        style={{ 
+                          color: '#334155', 
+                          fontWeight: '700', 
+                          overflow: 'hidden', 
+                          textOverflow: 'ellipsis', 
+                          whiteSpace: 'nowrap' 
+                        }}
+                        title={dDetails.fullAddress}
+                      >
+                        {dDetails.fullAddress}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      draggable={false}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onTouchStart={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleCopyAddress(dDetails.copyableAddress || dDetails.fullAddress, order.order_id || order.id);
+                      }}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '3px',
+                        background: isCardCopied ? '#dcfce7' : '#ffffff',
+                        border: isCardCopied ? '1px solid #86efac' : '1px solid #cbd5e1',
+                        color: isCardCopied ? '#15803d' : '#334155',
+                        padding: '2px 7px',
+                        borderRadius: '4px',
+                        fontSize: '10px',
+                        fontWeight: '800',
+                        cursor: 'pointer',
+                        flexShrink: 0,
+                        touchAction: 'manipulation',
+                        userSelect: 'none'
+                      }}
+                      title="Copy delivery address"
+                    >
+                      {isCardCopied ? <Check size={10} /> : <Copy size={10} />}
+                      <span>{isCardCopied ? 'Copied' : 'Copy'}</span>
+                    </button>
+                  </div>
+                );
+              })()}
+
               <div style={{ fontSize: '14px', fontWeight: '800', color: '#0f172a', marginBottom: '12px', lineHeight: '1.5', flex: 1 }}>
                 {order.items?.map(i => `${i.name} x${i.quantity}`).join(', ')}
               </div>
@@ -1264,6 +1475,76 @@ const OrdersManagement = () => {
                       );
                     })()}
 
+                    {/* Delivery Address snippet with 1-click Copy */}
+                    {isDelivery(order) && (() => {
+                      const dDetails = getDeliveryDetails(order);
+                      if (!dDetails || !dDetails.fullAddress) return null;
+                      const isCardCopied = copiedOrderId === (order.order_id || order.id);
+                      return (
+                        <div 
+                          onClick={(e) => e.stopPropagation()}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: '6px',
+                            background: '#f8fafc',
+                            border: '1px solid #e2e8f0',
+                            borderRadius: '8px',
+                            padding: '6px 10px',
+                            marginBottom: '12px',
+                            fontSize: '11px'
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0, flex: 1 }}>
+                            <MapPin size={11} color="#ea580c" style={{ flexShrink: 0 }} />
+                            <span 
+                              style={{ 
+                                color: '#334155', 
+                                fontWeight: '700', 
+                                overflow: 'hidden', 
+                                textOverflow: 'ellipsis', 
+                                whiteSpace: 'nowrap' 
+                              }}
+                              title={dDetails.fullAddress}
+                            >
+                              {dDetails.fullAddress}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            draggable={false}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onTouchStart={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCopyAddress(dDetails.copyableAddress || dDetails.fullAddress, order.order_id || order.id);
+                            }}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '3px',
+                              background: isCardCopied ? '#dcfce7' : '#ffffff',
+                              border: isCardCopied ? '1px solid #86efac' : '1px solid #cbd5e1',
+                              color: isCardCopied ? '#15803d' : '#334155',
+                              padding: '2px 7px',
+                              borderRadius: '4px',
+                              fontSize: '10px',
+                              fontWeight: '800',
+                              cursor: 'pointer',
+                              flexShrink: 0,
+                              touchAction: 'manipulation',
+                              userSelect: 'none'
+                            }}
+                            title="Copy delivery address"
+                          >
+                            {isCardCopied ? <Check size={10} /> : <Copy size={10} />}
+                            <span>{isCardCopied ? 'Copied' : 'Copy'}</span>
+                          </button>
+                        </div>
+                      );
+                    })()}
+
                     <div style={{ 
                       fontSize: '14px', 
                       color: '#0f172a', 
@@ -1373,131 +1654,338 @@ const OrdersManagement = () => {
       </div>
 
       {/* KOT Modal */}
-      {selectedKOTOrder && (
-        <div 
-          className="kot-modal-overlay"
-          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }} 
-          onClick={() => setSelectedKOTOrder(null)}
-        >
+      {selectedKOTOrder && (() => {
+        const isDeliv = isDelivery(selectedKOTOrder);
+        const delivInfo = isDeliv ? getDeliveryDetails(selectedKOTOrder) : null;
+        const custDetails = getCustomerDetails(selectedKOTOrder);
+        const customerName = (isDeliv && delivInfo?.name) ? delivInfo.name : custDetails.name;
+        const customerPhone = (isDeliv && delivInfo?.phone) ? delivInfo.phone : custDetails.phone;
+        const isTicketCopied = copiedOrderId === (selectedKOTOrder.order_id || selectedKOTOrder.id);
+
+        return (
           <div 
-            className="kot-ticket-content"
-            style={{ background: '#f8f9fa', padding: '28px 22px', borderRadius: '12px', maxWidth: '380px', width: '100%', fontFamily: 'monospace', color: 'black', boxShadow: '0 20px 40px rgba(0,0,0,0.25)', maxHeight: '90vh', overflowY: 'auto', border: '1px solid #e2e8f0' }} 
-            onClick={e => e.stopPropagation()}
+            className="kot-modal-overlay"
+            style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }} 
+            onClick={() => setSelectedKOTOrder(null)}
           >
-            <div style={{ textAlign: 'center', fontWeight: '900', fontSize: '17px', letterSpacing: '2px', marginBottom: '6px' }}>KITCHEN ORDER TICKET</div>
-            <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '13px', letterSpacing: '4px', color: '#64748b', marginBottom: '14px' }}>* * * KOT * * *</div>
-            
-            {/* Prominent Verification Box: Highlighted Bill No */}
-            <div style={{ borderTop: '1px dashed #aaa', margin: '10px 0' }}></div>
-            <div style={{ margin: '12px 0' }}>
-              <div style={{ textAlign: 'center', padding: '12px 8px', background: '#f0fdf4', borderRadius: '10px', border: '2px solid #86efac', boxShadow: '0 2px 6px rgba(34,197,94,0.15)' }}>
-                <div style={{ fontSize: '12px', fontWeight: '800', color: '#166534', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px' }}>Bill Number</div>
-                <div style={{ fontSize: '28px', fontWeight: '900', color: '#15803d', letterSpacing: '0.5px' }}>
-                  {selectedKOTOrder.bill_no ? `#${selectedKOTOrder.bill_no}` : `#${selectedKOTOrder.branch_order_id || selectedKOTOrder.order_id}`}
+            <div 
+              className="kot-ticket-content"
+              style={{ background: '#f8f9fa', padding: '28px 22px', borderRadius: '12px', maxWidth: '380px', width: '100%', fontFamily: 'monospace', color: 'black', boxShadow: '0 20px 40px rgba(0,0,0,0.25)', maxHeight: '90vh', overflowY: 'auto', border: '1px solid #e2e8f0' }} 
+              onClick={e => e.stopPropagation()}
+            >
+              <div style={{ textAlign: 'center', fontWeight: '900', fontSize: '17px', letterSpacing: '2px', marginBottom: '6px' }}>KITCHEN ORDER TICKET</div>
+              <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '13px', letterSpacing: '4px', color: '#64748b', marginBottom: '14px' }}>* * * KOT * * *</div>
+              
+              {/* Prominent Verification Box: Highlighted Bill No */}
+              <div style={{ borderTop: '1px dashed #aaa', margin: '10px 0' }}></div>
+              <div style={{ margin: '12px 0' }}>
+                <div style={{ textAlign: 'center', padding: '12px 8px', background: '#f0fdf4', borderRadius: '10px', border: '2px solid #86efac', boxShadow: '0 2px 6px rgba(34,197,94,0.15)' }}>
+                  <div style={{ fontSize: '12px', fontWeight: '800', color: '#166534', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px' }}>Bill Number</div>
+                  <div style={{ fontSize: '28px', fontWeight: '900', color: '#15803d', letterSpacing: '0.5px' }}>
+                    {selectedKOTOrder.bill_no ? `#${selectedKOTOrder.bill_no}` : `#${selectedKOTOrder.branch_order_id || selectedKOTOrder.order_id}`}
+                  </div>
                 </div>
               </div>
-            </div>
-            
-            <div style={{ borderTop: '1px dashed #aaa', margin: '12px 0' }}></div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '14px', fontWeight: '800' }}>
-              <span>Bill Number</span>
-              <span style={{ fontWeight: '900', color: '#15803d', background: '#ecfdf5', padding: '2px 8px', borderRadius: '6px', border: '1px solid #a7f3d0' }}>
-                {selectedKOTOrder.bill_no ? `#${selectedKOTOrder.bill_no}` : `#${selectedKOTOrder.branch_order_id || selectedKOTOrder.order_id}`}
-              </span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px', fontWeight: '800' }}>
-              <span>Date</span>
-              <span style={{ fontWeight: '800' }}>{new Date(selectedKOTOrder.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px', fontWeight: '800' }}>
-              <span>Time</span>
-              <span style={{ fontWeight: '800' }}>{new Date(selectedKOTOrder.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px', fontWeight: '800' }}>
-              <span>Customer</span>
-              <span style={{ fontWeight: '900' }}>{getCustomerDetails(selectedKOTOrder).name}</span>
-            </div>
-            {getCustomerDetails(selectedKOTOrder).phone && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px', fontWeight: '800' }}>
-                <span>Phone</span>
-                <span style={{ fontWeight: '800' }}>{getCustomerDetails(selectedKOTOrder).phone}</span>
+              
+              <div style={{ borderTop: '1px dashed #aaa', margin: '12px 0' }}></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '14px', fontWeight: '800' }}>
+                <span>Bill Number</span>
+                <span style={{ fontWeight: '900', color: '#15803d', background: '#ecfdf5', padding: '2px 8px', borderRadius: '6px', border: '1px solid #a7f3d0' }}>
+                  {selectedKOTOrder.bill_no ? `#${selectedKOTOrder.bill_no}` : `#${selectedKOTOrder.branch_order_id || selectedKOTOrder.order_id}`}
+                </span>
               </div>
-            )}
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px', fontWeight: '800' }}>
-              <span>Table</span>
-              <span style={{ fontWeight: '900' }}>{isDelivery(selectedKOTOrder) ? 'Delivery' : isTakeaway(selectedKOTOrder) ? 'Takeaway' : `T${selectedKOTOrder.table_number.toString().padStart(2, '0')}`}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px', fontSize: '13px', fontWeight: '800' }}>
-              <span>Type</span>
-              <span style={{ fontWeight: '900' }}>{isDelivery(selectedKOTOrder) ? 'Delivery' : isTakeaway(selectedKOTOrder) ? 'Takeaway' : 'Dine-In'}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px', fontSize: '13px', fontWeight: '800' }}>
-              <span>Payment</span>
-              <span style={{ 
-                color: getPaymentDisplayInfo(selectedKOTOrder).themeColor, 
-                fontWeight: '900',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '5px'
-              }}>
-                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: getPaymentDisplayInfo(selectedKOTOrder).themeColor }} />
-                {getPaymentDisplayInfo(selectedKOTOrder).badgeText}
-              </span>
-            </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px', fontWeight: '800' }}>
+                <span>Date</span>
+                <span style={{ fontWeight: '800' }}>{new Date(selectedKOTOrder.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px', fontWeight: '800' }}>
+                <span>Time</span>
+                <span style={{ fontWeight: '800' }}>{new Date(selectedKOTOrder.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px', fontWeight: '800' }}>
+                <span>Customer</span>
+                <span style={{ fontWeight: '900' }}>{customerName}</span>
+              </div>
+              {customerPhone && customerPhone !== '-' && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px', fontWeight: '800' }}>
+                  <span>Phone</span>
+                  <span style={{ fontWeight: '800' }}>{customerPhone}</span>
+                </div>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px', fontWeight: '800' }}>
+                <span>Table</span>
+                <span style={{ fontWeight: '900' }}>{isDeliv ? 'Delivery' : isTakeaway(selectedKOTOrder) ? 'Takeaway' : `T${selectedKOTOrder.table_number.toString().padStart(2, '0')}`}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px', fontSize: '13px', fontWeight: '800' }}>
+                <span>Type</span>
+                <span style={{ 
+                  fontWeight: '900',
+                  color: isDeliv ? '#c2410c' : 'inherit',
+                  background: isDeliv ? '#ffedd5' : 'transparent',
+                  padding: isDeliv ? '2px 8px' : '0',
+                  borderRadius: isDeliv ? '4px' : '0'
+                }}>
+                  {isDeliv ? '🛵 DELIVERY' : isTakeaway(selectedKOTOrder) ? 'Takeaway' : 'Dine-In'}
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px', fontSize: '13px', fontWeight: '800' }}>
+                <span>Payment</span>
+                <span style={{ 
+                  color: getPaymentDisplayInfo(selectedKOTOrder).themeColor, 
+                  fontWeight: '900',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '5px'
+                }}>
+                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: getPaymentDisplayInfo(selectedKOTOrder).themeColor }} />
+                  {getPaymentDisplayInfo(selectedKOTOrder).badgeText}
+                </span>
+              </div>
 
-            <div style={{ borderTop: '1px dashed #aaa', margin: '12px 0' }}></div>
-            <div style={{ display: 'flex', gap: '16px', fontWeight: 'bold', marginBottom: '8px', fontSize: '14px' }}>
-              <span style={{ width: '32px' }}>QTY</span>
-              <span>ITEM</span>
-            </div>
-            <div style={{ borderTop: '1px dashed #aaa', margin: '12px 0' }}></div>
-            
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px', fontSize: '14px' }}>
-              {selectedKOTOrder.items && selectedKOTOrder.items.map((item, idx) => {
-                const isCancelled = (item.status || '').toUpperCase() === 'CANCELLED';
-                return (
-                  <div key={idx} style={{ display: 'flex', gap: '16px', opacity: isCancelled ? 0.5 : 1 }}>
-                    <span style={{ width: '32px', fontWeight: 'bold', textDecoration: isCancelled ? 'line-through' : 'none' }}>{item.quantity}</span>
-                    <span style={{ fontWeight: 'bold', textDecoration: isCancelled ? 'line-through' : 'none', color: isCancelled ? '#dc2626' : 'inherit' }}>
-                      {item.item_name?.toUpperCase() || item.name?.toUpperCase() || `ITEM #${item.item_id}`}
-                      {isCancelled && <span style={{ marginLeft: '8px', color: '#dc2626', fontSize: '11px', background: '#fee2e2', padding: '2px 6px', borderRadius: '4px' }}>CANCELLED</span>}
+              {/* EXTRA DELIVERY DETAILS SECTION (Included when delivery orders are placed) */}
+              {isDeliv && delivInfo && (
+                <div style={{
+                  background: '#ffffff',
+                  border: '2px solid #0f172a',
+                  borderRadius: '8px',
+                  padding: '12px 14px',
+                  marginBottom: '16px',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+                }}>
+                  {/* Delivery section header */}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    borderBottom: '1px dashed #94a3b8',
+                    paddingBottom: '8px',
+                    marginBottom: '10px'
+                  }}>
+                    <span style={{
+                      fontWeight: '900',
+                      fontSize: '13px',
+                      letterSpacing: '1px',
+                      color: '#c2410c'
+                    }}>
+                      🛵 DELIVERY DETAILS
+                    </span>
+                    {delivInfo.addressType && (
+                      <span style={{
+                        fontSize: '11px',
+                        fontWeight: '800',
+                        background: '#ffedd5',
+                        color: '#9a3412',
+                        padding: '2px 8px',
+                        borderRadius: '4px',
+                        textTransform: 'uppercase'
+                      }}>
+                        {delivInfo.addressType}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Customer Name */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '13px' }}>
+                    <span style={{ color: '#475569', fontWeight: '700' }}>Customer:</span>
+                    <span style={{ fontWeight: '900', color: '#0f172a', textAlign: 'right' }}>
+                      {customerName}
                     </span>
                   </div>
-                );
-              })}
-              {(!selectedKOTOrder.items || selectedKOTOrder.items.length === 0) && (
-                <div style={{ fontStyle: 'italic', color: '#666' }}>No items found</div>
-              )}
-            </div>
 
-            {selectedKOTOrder.notes && (
-              <>
-                <div style={{ borderTop: '1px dashed #aaa', margin: '12px 0' }}></div>
-                <div style={{ fontWeight: 'bold', marginBottom: '4px', fontSize: '14px' }}>Special Note:</div>
-                <div style={{ fontStyle: 'italic', marginBottom: '16px', fontSize: '14px' }}>{selectedKOTOrder.notes}</div>
-              </>
-            )}
-            
-            <div style={{ borderTop: '1px dashed #aaa', margin: '12px 0' }}></div>
-            <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '13px', marginTop: '16px' }}>* * * END OF TICKET * * *</div>
-            
-            <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
-              <button 
-                onClick={() => window.print()}
-                style={{ flex: 1, padding: '12px', background: '#ff6b35', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
-              >
-                🖨️ PRINT KOT
-              </button>
-              <button 
-                onClick={() => setSelectedKOTOrder(null)}
-                style={{ flex: 1, padding: '12px', background: '#e0e0e0', color: '#333', border: 'none', borderRadius: '6px', fontWeight: 'bold', fontSize: '13px', cursor: 'pointer', fontFamily: 'sans-serif' }}
-              >
-                CLOSE
-              </button>
+                  {/* Phone Number with Click-to-Call */}
+                  {customerPhone && customerPhone !== '-' && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', fontSize: '13px' }}>
+                      <span style={{ color: '#475569', fontWeight: '700' }}>Phone:</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontWeight: '900', color: '#0f172a' }}>{customerPhone}</span>
+                        <a
+                          href={`tel:${customerPhone}`}
+                          className="no-print"
+                          onClick={(e) => e.stopPropagation()}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: '#ffedd5',
+                            color: '#c2410c',
+                            border: '1px solid #fdba74',
+                            borderRadius: '50%',
+                            width: '20px',
+                            height: '20px',
+                            textDecoration: 'none'
+                          }}
+                          title="Call Customer"
+                        >
+                          <Phone size={10} />
+                        </a>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Delivery Address Box with Prominent Copy Button */}
+                  <div style={{
+                    marginTop: '8px',
+                    padding: '10px',
+                    background: '#f8fafc',
+                    borderRadius: '6px',
+                    border: '1px solid #cbd5e1'
+                  }}>
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginBottom: '6px'
+                    }}>
+                      <span style={{ fontSize: '12px', fontWeight: '800', color: '#334155', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        📍 Address:
+                      </span>
+                      <button
+                        type="button"
+                        className="no-print"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCopyAddress(delivInfo.copyableAddress || delivInfo.fullAddress, selectedKOTOrder.order_id || selectedKOTOrder.id);
+                        }}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          padding: '4px 10px',
+                          background: isTicketCopied ? '#16a34a' : '#ff6b35',
+                          color: '#ffffff',
+                          border: 'none',
+                          borderRadius: '6px',
+                          fontSize: '11px',
+                          fontWeight: '800',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+                        }}
+                        title="Click to copy delivery address"
+                      >
+                        {isTicketCopied ? <Check size={12} /> : <Copy size={12} />}
+                        <span>{isTicketCopied ? 'Copied!' : 'Copy'}</span>
+                      </button>
+                    </div>
+
+                    <div style={{
+                      fontSize: '13px',
+                      fontWeight: '800',
+                      color: '#0f172a',
+                      lineHeight: '1.45',
+                      wordBreak: 'break-word',
+                      whiteSpace: 'pre-wrap'
+                    }}>
+                      {delivInfo.fullAddress || 'No address provided'}
+                    </div>
+
+                    {delivInfo.landmark && (
+                      <div style={{ marginTop: '6px', fontSize: '12px', color: '#475569', fontWeight: '700' }}>
+                        <span style={{ color: '#64748b' }}>Landmark: </span>
+                        <span>{delivInfo.landmark}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Delivery Instructions */}
+                  {delivInfo.instructions && (
+                    <div style={{
+                      marginTop: '8px',
+                      padding: '8px 10px',
+                      background: '#fffbeb',
+                      borderRadius: '6px',
+                      border: '1px solid #fef3c7',
+                      fontSize: '12px'
+                    }}>
+                      <span style={{ fontWeight: '800', color: '#b45309' }}>📌 Instructions: </span>
+                      <span style={{ fontStyle: 'italic', color: '#92400e', fontWeight: '700' }}>
+                        {delivInfo.instructions}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Delivery Status & Fee */}
+                  {(delivInfo.deliveryStatus || delivInfo.deliveryFee != null) && (
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginTop: '8px',
+                      paddingTop: '6px',
+                      borderTop: '1px dashed #cbd5e1',
+                      fontSize: '12px'
+                    }}>
+                      {delivInfo.deliveryStatus && (
+                        <span>
+                          <span style={{ color: '#64748b', fontWeight: '700' }}>Status: </span>
+                          <span style={{ fontWeight: '800', color: '#0369a1' }}>{delivInfo.deliveryStatus}</span>
+                        </span>
+                      )}
+                      {delivInfo.deliveryFee != null && (
+                        <span style={{ marginLeft: 'auto' }}>
+                          <span style={{ color: '#64748b', fontWeight: '700' }}>Fee: </span>
+                          <span style={{ fontWeight: '800' }}>₹{delivInfo.deliveryFee}</span>
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div style={{ borderTop: '1px dashed #aaa', margin: '12px 0' }}></div>
+              <div style={{ display: 'flex', gap: '16px', fontWeight: 'bold', marginBottom: '8px', fontSize: '14px' }}>
+                <span style={{ width: '32px' }}>QTY</span>
+                <span>ITEM</span>
+              </div>
+              <div style={{ borderTop: '1px dashed #aaa', margin: '12px 0' }}></div>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px', fontSize: '14px' }}>
+                {selectedKOTOrder.items && selectedKOTOrder.items.map((item, idx) => {
+                  const isCancelled = (item.status || '').toUpperCase() === 'CANCELLED';
+                  return (
+                    <div key={idx} style={{ display: 'flex', gap: '16px', opacity: isCancelled ? 0.5 : 1 }}>
+                      <span style={{ width: '32px', fontWeight: 'bold', textDecoration: isCancelled ? 'line-through' : 'none' }}>{item.quantity}</span>
+                      <span style={{ fontWeight: 'bold', textDecoration: isCancelled ? 'line-through' : 'none', color: isCancelled ? '#dc2626' : 'inherit' }}>
+                        {item.item_name?.toUpperCase() || item.name?.toUpperCase() || `ITEM #${item.item_id}`}
+                        {isCancelled && <span style={{ marginLeft: '8px', color: '#dc2626', fontSize: '11px', background: '#fee2e2', padding: '2px 6px', borderRadius: '4px' }}>CANCELLED</span>}
+                      </span>
+                    </div>
+                  );
+                })}
+                {(!selectedKOTOrder.items || selectedKOTOrder.items.length === 0) && (
+                  <div style={{ fontStyle: 'italic', color: '#666' }}>No items found</div>
+                )}
+              </div>
+
+              {selectedKOTOrder.notes && (
+                <>
+                  <div style={{ borderTop: '1px dashed #aaa', margin: '12px 0' }}></div>
+                  <div style={{ fontWeight: 'bold', marginBottom: '4px', fontSize: '14px' }}>Special Note:</div>
+                  <div style={{ fontStyle: 'italic', marginBottom: '16px', fontSize: '14px' }}>{selectedKOTOrder.notes}</div>
+                </>
+              )}
+              
+              <div style={{ borderTop: '1px dashed #aaa', margin: '12px 0' }}></div>
+              <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '13px', marginTop: '16px' }}>* * * END OF TICKET * * *</div>
+              
+              <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+                <button 
+                  onClick={() => window.print()}
+                  style={{ flex: 1, padding: '12px', background: '#ff6b35', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                >
+                  🖨️ PRINT KOT
+                </button>
+                <button 
+                  onClick={() => setSelectedKOTOrder(null)}
+                  style={{ flex: 1, padding: '12px', background: '#e0e0e0', color: '#333', border: 'none', borderRadius: '6px', fontWeight: 'bold', fontSize: '13px', cursor: 'pointer', fontFamily: 'sans-serif' }}
+                >
+                  CLOSE
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 };
