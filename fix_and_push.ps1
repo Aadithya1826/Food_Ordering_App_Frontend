@@ -14,8 +14,8 @@ Write-Host "Renaming current branch to deployment so push works..."
 git branch -m deployment
 
 Write-Host "Adding remote if not exists..."
-# Replace this URL with your desired target repository
-$remoteUrl = "https://github.com/Aadithya1826/Udipi_frontend.git"
+# Target repository
+$remoteUrl = "https://github.com/Aadithya1826/Food_Ordering_App_Frontend.git"
 try {
     git remote add origin $remoteUrl
 } catch {
