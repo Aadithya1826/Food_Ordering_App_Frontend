@@ -17,12 +17,29 @@ const ReportView = ({ type, onBack }) => {
         if (type === 'hourly') {
           const res = await reportsService.getHourlyReport({ date: selectedDate });
           setReportData(res);
+        } else if (type === 'ac_hourly') {
+          const res = await reportsService.getHourlyReport({ date: selectedDate, ac_only: true });
+          setReportData(res);
         } else if (type === 'item') {
           const res = await reportsService.getItemWiseReport({ date: selectedDate });
           setReportData(res);
+        } else if (type === 'ac_item') {
+          const res = await reportsService.getItemWiseReport({ date: selectedDate, ac_only: true });
+          setReportData(res);
         }
       } catch (err) {
-        setError('Failed to fetch report data. Your session may have expired (401 Unauthorized), please try logging in again.');
+        const reportTitle = type.includes('hourly') ? 'Hourly Sales Report' : 'Item Wise Sales Report';
+        console.error(`Error loading ${reportTitle}:`, err);
+        const detail = err.response?.data?.detail;
+        if (err.response?.status === 401) {
+          setError('Your session has expired (401). Please log in again.');
+        } else if (err.response?.status === 403) {
+          setError(`Access denied (403): ${detail || 'You do not have permission to view this report.'}`);
+        } else if (!err.response) {
+          setError(`Cannot connect to backend server. Please make sure the backend is running at ${import.meta.env.VITE_API_URL || 'http://localhost:8001'}.`);
+        } else {
+          setError(`Failed to fetch ${reportTitle}: ${detail || err.message}`);
+        }
       } finally {
         setLoading(false);
       }
@@ -44,10 +61,32 @@ const ReportView = ({ type, onBack }) => {
   }
 
   if (error) {
+    const isAuthError = error.includes('401') || error.toLowerCase().includes('expired') || error.toLowerCase().includes('log in');
     return (
       <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-        <p style={{ color: 'red' }}>{error}</p>
-        <button className="primary-button" onClick={onBack} style={{ marginTop: '20px' }}>Go Back</button>
+        <p style={{ color: 'red', fontSize: '15px', fontWeight: '500' }}>{error}</p>
+        <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', marginTop: '20px' }}>
+          <button
+            className="secondary-button"
+            onClick={onBack}
+            style={{ padding: '8px 20px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer' }}
+          >
+            Go Back
+          </button>
+          {isAuthError && (
+            <button
+              className="primary-button"
+              onClick={() => {
+                localStorage.removeItem('access_token');
+                localStorage.removeItem('user');
+                window.location.href = '/';
+              }}
+              style={{ padding: '8px 20px', borderRadius: '6px', background: 'var(--primary)', color: 'white', border: 'none', cursor: 'pointer', fontWeight: '600' }}
+            >
+              Log In Again
+            </button>
+          )}
+        </div>
       </div>
     );
   }
@@ -76,7 +115,7 @@ const ReportView = ({ type, onBack }) => {
           </button>
           <div>
             <h1 style={{ fontSize: '24px', fontWeight: '700', margin: '0' }}>
-              {type === 'hourly' ? 'Hourly Sales Report' : 'Item Wise Sales Report'}
+              {type === 'ac_hourly' ? 'AC Hourly Sales Report' : type === 'hourly' ? 'Hourly Sales Report' : type === 'ac_item' ? 'AC Item Wise Sales Report' : 'Item Wise Sales Report'}
             </h1>
             <p style={{ color: 'var(--text-secondary)', margin: '4px 0 0 0', fontSize: '14px' }}>
               Date: {reportData?.date || selectedDate} | Starting Bill: {reportData?.starting_bill?.no || '-'} | Ending Bill: {reportData?.ending_bill?.no || '-'}
@@ -117,20 +156,34 @@ const ReportView = ({ type, onBack }) => {
         </div>
 
         {/* Dashboard Cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
           <div style={{ background: 'var(--surface)', padding: '20px', borderRadius: '12px', border: '1px solid var(--border)' }}>
             <h3 style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: '0 0 8px 0' }}>Total Sales</h3>
-            <p style={{ fontSize: '28px', fontWeight: '700', margin: '0', color: 'black' }}>₹{reportData.total_sales.toFixed(2)}</p>
+            <p style={{ fontSize: '26px', fontWeight: '700', margin: '0', color: 'black' }}>₹{reportData.total_sales.toFixed(2)}</p>
           </div>
-          {type === 'item' && (
+          {reportData.ac_sales !== undefined && (
+            <div style={{ background: 'var(--surface)', padding: '20px', borderRadius: '12px', border: '1px solid #93c5fd' }}>
+              <h3 style={{ color: '#1d4ed8', fontSize: '13px', margin: '0 0 8px 0', fontWeight: '700' }}>AC Bill Sales</h3>
+              <p style={{ fontSize: '26px', fontWeight: '700', margin: '0', color: '#1d4ed8' }}>₹{reportData.ac_sales.toFixed(2)}</p>
+              <span style={{ fontSize: '12px', color: '#64748b' }}>{reportData.ac_orders_count || 0} AC bills</span>
+            </div>
+          )}
+          {reportData.non_ac_sales !== undefined && (
+            <div style={{ background: 'var(--surface)', padding: '20px', borderRadius: '12px', border: '1px solid var(--border)' }}>
+              <h3 style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: '0 0 8px 0' }}>Non-AC Sales</h3>
+              <p style={{ fontSize: '26px', fontWeight: '700', margin: '0', color: 'black' }}>₹{reportData.non_ac_sales.toFixed(2)}</p>
+              <span style={{ fontSize: '12px', color: '#64748b' }}>{reportData.non_ac_orders_count || 0} Non-AC bills</span>
+            </div>
+          )}
+          {type.includes('item') && (
             <>
               <div style={{ background: 'var(--surface)', padding: '20px', borderRadius: '12px', border: '1px solid var(--border)' }}>
                 <h3 style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: '0 0 8px 0' }}>Total Items Types Sold</h3>
-                <p style={{ fontSize: '28px', fontWeight: '700', margin: '0', color: 'black' }}>{reportData.items.length}</p>
+                <p style={{ fontSize: '26px', fontWeight: '700', margin: '0', color: 'black' }}>{reportData.items.length}</p>
               </div>
               <div style={{ background: 'var(--surface)', padding: '20px', borderRadius: '12px', border: '1px solid var(--border)' }}>
                 <h3 style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: '0 0 8px 0' }}>Total Quantity Sold</h3>
-                <p style={{ fontSize: '28px', fontWeight: '700', margin: '0', color: 'black' }}>
+                <p style={{ fontSize: '26px', fontWeight: '700', margin: '0', color: 'black' }}>
                   {reportData.items.reduce((acc, curr) => acc + curr.qty, 0).toFixed(0)}
                 </p>
               </div>
@@ -143,7 +196,7 @@ const ReportView = ({ type, onBack }) => {
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead>
               <tr style={{ background: 'var(--background)', borderBottom: '1px solid var(--border)' }}>
-                {type === 'hourly' ? (
+                {type.includes('hourly') ? (
                   <>
                     <th style={{ padding: '16px 24px', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)' }}>Timeline</th>
                     <th style={{ padding: '16px 24px', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', textAlign: 'right' }}>Sales Amount (₹)</th>
@@ -159,7 +212,7 @@ const ReportView = ({ type, onBack }) => {
               </tr>
             </thead>
             <tbody>
-              {type === 'hourly' ? (
+              {type.includes('hourly') ? (
                 reportData.timeline.map((t, idx) => (
                   <tr key={idx} style={{ borderBottom: '1px solid var(--border)' }}>
                     <td style={{ padding: '16px 24px', fontSize: '14px', fontWeight: '500', color: 'black' }}>{t.time}</td>
@@ -207,11 +260,11 @@ const ReportView = ({ type, onBack }) => {
             </p>
             
             <h2 style={{ fontSize: '16px', fontWeight: 'bold', margin: '16px 0 12px 0', textTransform: 'uppercase' }}>
-              {type === 'hourly' ? 'HOURLY REPORT' : 'ITEM WISE REPORT'}
+              {type === 'ac_hourly' ? 'AC HOURLY REPORT' : type === 'hourly' ? 'HOURLY REPORT' : type === 'ac_item' ? 'AC ITEM WISE REPORT' : 'ITEM WISE REPORT'}
             </h2>
             
             <div style={{ textAlign: 'left', marginBottom: '12px' }}>
-              {type === 'hourly' ? (
+              {type.includes('hourly') ? (
                 <p style={{ margin: '0 0 8px 0' }}>Date : {reportData.date}</p>
               ) : (
                 <>
@@ -231,7 +284,7 @@ const ReportView = ({ type, onBack }) => {
           </div>
 
           <div style={{ borderTop: '1px dashed #000', borderBottom: '1px dashed #000', margin: '8px 0', padding: '8px 0' }}>
-            {type === 'hourly' ? (
+            {type.includes('hourly') ? (
               <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
                 <span>Timeline</span>
                 <span>SalesAmount</span>
@@ -247,7 +300,7 @@ const ReportView = ({ type, onBack }) => {
           </div>
 
           <div style={{ minHeight: '100px' }}>
-            {type === 'hourly' ? (
+            {type.includes('hourly') ? (
               reportData.timeline.map((t, idx) => (
                 <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', margin: '4px 0' }}>
                   <span>{t.time}</span>
@@ -267,10 +320,18 @@ const ReportView = ({ type, onBack }) => {
           </div>
 
           <div style={{ borderTop: '1px dashed #000', marginTop: '12px', paddingTop: '12px' }}>
-            {type === 'hourly' ? (
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '15px' }}>
-                <span>TOTAL SALES</span>
-                <span>{reportData.total_sales.toFixed(2)}</span>
+            {type.includes('hourly') ? (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '15px' }}>
+                  <span>TOTAL SALES</span>
+                  <span>{reportData.total_sales.toFixed(2)}</span>
+                </div>
+                {reportData.ac_sales !== undefined && (
+                  <div style={{ fontSize: '10px', marginTop: '4px', color: '#333' }}>
+                    <div>(AC) AC Sales : {reportData.ac_sales.toFixed(2)} ({reportData.ac_orders_count || 0} Bills)</div>
+                    <div>Non-AC Sales  : {reportData.non_ac_sales.toFixed(2)} ({reportData.non_ac_orders_count || 0} Bills)</div>
+                  </div>
+                )}
               </div>
             ) : (
               <>

@@ -21,6 +21,7 @@ import {
   CalendarDays,
   Smartphone,
   Database,
+  Wind,
 } from 'lucide-react';
 import DataudipiTitle from '../assets/Dataudupi-Title.png';
 import ChefMascot from '../assets/chef_mascot.png';
@@ -32,6 +33,7 @@ import CateringOrdersManagement from '../components/CateringOrdersManagement';
 import MobileAppSalesReport from '../components/MobileAppSalesReport';
 import CashierSalesReport from '../components/CashierSalesReport';
 import TotalSalesReport from '../components/TotalSalesReport';
+import ACSalesReport from '../components/ACSalesReport';
 import TableManagement from '../components/TableManagement';
 import InventoryManagement from '../components/InventoryManagement';
 import PaymentManagement from '../components/PaymentManagement';
@@ -149,6 +151,7 @@ const HotelManagerDashboard = () => {
     { id: 'cashier_sales', label: 'Cashier Sales', icon: CreditCard },
     { id: 'mobile_sales', label: 'Mobile App Sales', icon: Smartphone },
     { id: 'total_sales', label: 'Total Sales', icon: TrendingUp },
+    { id: 'ac_sales', label: 'AC Bill Sales', icon: Wind },
     { id: 'orders', label: 'Orders', icon: ShoppingCart },
     { id: 'tables', label: 'Tables & QR', icon: Table2 },
     { id: 'inventory', label: 'Inventory', icon: Package },
@@ -572,6 +575,10 @@ const HotelManagerDashboard = () => {
             <TotalSalesReport onBack={() => setActivePage('dashboard')} />
           )}
 
+          {activePage === 'ac_sales' && (
+            <ACSalesReport onBack={() => setActivePage('dashboard')} />
+          )}
+
           {activePage === 'orders' && (
             <OrdersManagement />
           )}
@@ -706,7 +713,7 @@ const HotelManagerDashboard = () => {
           );
         })}
         <button
-          className={['cashier_sales', 'mobile_sales', 'total_sales', 'orders', 'tables', 'inventory', 'payments', 'reports', 'data_management', 'settings'].includes(activePage) ? 'active' : ''}
+          className={['ac_sales', 'cashier_sales', 'mobile_sales', 'total_sales', 'orders', 'tables', 'inventory', 'payments', 'reports', 'data_management', 'settings'].includes(activePage) ? 'active' : ''}
           onClick={() => setIsMoreMenuOpen(!isMoreMenuOpen)}
         >
           <Menu size={22} />
@@ -715,7 +722,7 @@ const HotelManagerDashboard = () => {
       </div>
 
       <VoiceWidget onNavigate={(page, subtab) => {
-        if (['dashboard', 'menu', 'catering_menu', 'catering_orders', 'cashier_sales', 'mobile_sales', 'total_sales', 'orders', 'tables', 'inventory', 'payments', 'reports', 'data_management', 'settings'].includes(page)) {
+        if (['dashboard', 'menu', 'catering_menu', 'catering_orders', 'ac_sales', 'cashier_sales', 'mobile_sales', 'total_sales', 'orders', 'tables', 'inventory', 'payments', 'reports', 'data_management', 'settings'].includes(page)) {
           setActivePage(page);
         }
         if (subtab) {

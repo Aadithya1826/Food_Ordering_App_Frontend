@@ -21,7 +21,8 @@ import {
   Phone,
   CheckCircle2,
   AlertCircle,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Wind
 } from 'lucide-react';
 import { reportsService } from '../services/api';
 
@@ -32,9 +33,10 @@ import { reportsService } from '../services/api';
  *   - mode="TOTAL"   : Consolidated sales (all amounts income) with (C) Cashier and (M) Mobile tags
  *   - mode="CASHIER" : Cashier POS sales only (C)
  *   - mode="MOBILE"  : Customer Mobile App sales only (M)
+ *   - mode="AC"      : AC Bills only (Air Conditioned)
  *
  * Props:
- *   mode   - 'TOTAL' | 'CASHIER' | 'MOBILE' (default: 'TOTAL')
+ *   mode   - 'TOTAL' | 'CASHIER' | 'MOBILE' | 'AC' (default: 'TOTAL')
  *   onBack - callback to return
  */
 const SalesReportView = ({ mode = 'TOTAL', onBack }) => {
@@ -51,9 +53,23 @@ const SalesReportView = ({ mode = 'TOTAL', onBack }) => {
   const [typeFilter, setTypeFilter]       = useState('ALL');
   const [paymentFilter, setPaymentFilter] = useState('ALL');
   const [sourceFilter, setSourceFilter]   = useState('ALL'); // 'ALL' | 'CASHIER' | 'MOBILE'
+  const [acFilter, setAcFilter]           = useState('ALL'); // 'ALL' | 'AC' | 'NON_AC'
   const [selectedOrder, setSelectedOrder] = useState(null);
 
   const config = useMemo(() => {
+    if (mode === 'AC') {
+      return {
+        title: 'AC Bills Sales & Order History',
+        badgeText: '(AC) AC Bills Only',
+        badgeBg: '#eff6ff',
+        badgeColor: '#1d4ed8',
+        badgeBorder: '#93c5fd',
+        icon: Wind,
+        csvPrefix: 'AC_Bills_Sales_Report',
+        receiptTitle: 'AC BILL SALES REPORT (AC)',
+        fetchFn: reportsService.getACReport,
+      };
+    }
     if (mode === 'CASHIER') {
       return {
         title: 'Cashier Sales & Order History',
@@ -102,9 +118,17 @@ const SalesReportView = ({ mode = 'TOTAL', onBack }) => {
         const res = await config.fetchFn({ date: selectedDate });
         setReportData(res);
       } catch (err) {
-        setError(
-          `Failed to fetch ${config.title}. Your session may have expired (401). Please log in again.`
-        );
+        console.error(`Error loading ${config.title}:`, err);
+        const detail = err.response?.data?.detail;
+        if (err.response?.status === 401) {
+          setError(`Your session has expired (401). Please log in again.`);
+        } else if (err.response?.status === 403) {
+          setError(`Access denied (403): ${detail || 'You do not have permission to view this report.'}`);
+        } else if (!err.response) {
+          setError(`Cannot connect to the backend server. Please ensure the backend is running at ${import.meta.env.VITE_API_URL || 'http://localhost:8001'}.`);
+        } else {
+          setError(`Failed to fetch ${config.title}: ${detail || err.message}`);
+        }
       } finally {
         setLoading(false);
       }
@@ -127,6 +151,12 @@ const SalesReportView = ({ mode = 'TOTAL', onBack }) => {
         if ((order.source || '').toUpperCase() !== sourceFilter) {
           return false;
         }
+      }
+      // AC section filter (available in TOTAL and CASHIER modes)
+      if (mode !== 'AC' && acFilter !== 'ALL') {
+        const isAc = !!order.is_ac;
+        if (acFilter === 'AC' && !isAc) return false;
+        if (acFilter === 'NON_AC' && isAc) return false;
       }
       // Status filter
       if (statusFilter !== 'ALL' && (order.status || '').toUpperCase() !== statusFilter) {
@@ -156,7 +186,7 @@ const SalesReportView = ({ mode = 'TOTAL', onBack }) => {
       }
       return true;
     });
-  }, [ordersList, searchTerm, statusFilter, typeFilter, paymentFilter, sourceFilter, mode]);
+  }, [ordersList, searchTerm, statusFilter, typeFilter, paymentFilter, sourceFilter, acFilter, mode]);
 
   // ── Export CSV Report ──────────────────────────────────────────────────────
   const handleExportCSV = () => {
@@ -170,6 +200,7 @@ const SalesReportView = ({ mode = 'TOTAL', onBack }) => {
     const headers = [
       'Order ID',
       'Source (C / M)',
+      'AC / Non-AC',
       'Customer Name',
       'Phone Number',
       'Order Type',
@@ -192,6 +223,7 @@ const SalesReportView = ({ mode = 'TOTAL', onBack }) => {
     const rows = ordersToExport.map((o) => [
       escapeCSV(o.order_id || `ORD-${o.id}`),
       escapeCSV(o.source_label || (o.source === 'CASHIER' ? '(C) Cashier' : '(M) Mobile')),
+      escapeCSV(o.is_ac ? 'AC Bill' : 'Non-AC'),
       escapeCSV(o.customer_name || (o.source === 'CASHIER' ? 'Walk-in' : 'Guest')),
       escapeCSV(o.customer_phone || ''),
       escapeCSV(o.order_type || ''),
@@ -258,6 +290,27 @@ const SalesReportView = ({ mode = 'TOTAL', onBack }) => {
         whiteSpace: 'nowrap'
       }}>
         (M) Mobile
+      </span>
+    );
+  };
+
+  const getAcBadge = (order) => {
+    if (!order.is_ac) return null;
+    return (
+      <span style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '3px',
+        padding: '3px 8px',
+        borderRadius: '12px',
+        fontSize: '11px',
+        fontWeight: '800',
+        background: '#eff6ff',
+        color: '#1d4ed8',
+        border: '1px solid #93c5fd',
+        whiteSpace: 'nowrap'
+      }}>
+        <Wind size={11} /> (AC)
       </span>
     );
   };
@@ -400,16 +453,32 @@ const SalesReportView = ({ mode = 'TOTAL', onBack }) => {
   }
 
   if (error) {
+    const isAuthError = error.includes('401') || error.toLowerCase().includes('expired') || error.toLowerCase().includes('log in');
     return (
       <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-        <p style={{ color: 'red' }}>{error}</p>
-        <button
-          className="primary-button"
-          onClick={onBack}
-          style={{ marginTop: '20px' }}
-        >
-          Go Back
-        </button>
+        <p style={{ color: 'red', fontSize: '15px', fontWeight: '500' }}>{error}</p>
+        <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', marginTop: '20px' }}>
+          <button
+            className="secondary-button"
+            onClick={onBack}
+            style={{ padding: '8px 20px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer' }}
+          >
+            Go Back
+          </button>
+          {isAuthError && (
+            <button
+              className="primary-button"
+              onClick={() => {
+                localStorage.removeItem('access_token');
+                localStorage.removeItem('user');
+                window.location.href = '/';
+              }}
+              style={{ padding: '8px 20px', borderRadius: '6px', background: 'var(--primary)', color: 'white', border: 'none', cursor: 'pointer', fontWeight: '600' }}
+            >
+              Log In Again
+            </button>
+          )}
+        </div>
       </div>
     );
   }
@@ -424,6 +493,20 @@ const SalesReportView = ({ mode = 'TOTAL', onBack }) => {
       subtitle: 'All amounts income (C + M)',
       icon: IndianRupee,
       color: '#ff8c42'
+    },
+    {
+      label: 'AC Bill Sales (AC)',
+      value: `₹${(reportData?.ac_sales || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      subtitle: `${reportData?.ac_orders_count || 0} AC bills included`,
+      icon: Wind,
+      color: '#2563eb'
+    },
+    {
+      label: 'Non-AC Sales',
+      value: `₹${(reportData?.non_ac_sales || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      subtitle: `${reportData?.non_ac_orders_count || 0} Non-AC bills`,
+      icon: Utensils,
+      color: '#0891b2'
     },
     {
       label: 'Cashier POS Sales (C)',
@@ -444,7 +527,36 @@ const SalesReportView = ({ mode = 'TOTAL', onBack }) => {
       value: `${reportData?.total_orders || 0} Orders`,
       subtitle: `${(reportData?.items || []).reduce((acc, i) => acc + (i.qty || 0), 0)} items sold`,
       icon: FileSpreadsheet,
+      color: '#7c3aed'
+    }
+  ] : mode === 'AC' ? [
+    {
+      label: 'Total AC Bill Sales',
+      value: `₹${(reportData?.total_sales || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      subtitle: 'AC dining & orders only',
+      icon: IndianRupee,
+      color: '#2563eb'
+    },
+    {
+      label: 'Fulfilled AC Orders',
+      value: reportData?.total_orders ?? 0,
+      subtitle: 'Completed / Paid AC orders',
+      icon: Wind,
       color: '#0284c7'
+    },
+    {
+      label: 'Total AC Records',
+      value: reportData?.orders?.length ?? (reportData?.total_orders ?? 0),
+      subtitle: 'All AC order records today',
+      icon: FileSpreadsheet,
+      color: '#3b82f6'
+    },
+    {
+      label: 'Total AC Qty Sold',
+      value: (reportData?.items || []).reduce((acc, i) => acc + (i.qty || 0), 0).toFixed(0),
+      subtitle: 'AC item portions',
+      icon: Clock,
+      color: '#60a5fa'
     }
   ] : mode === 'CASHIER' ? [
     {
@@ -810,7 +922,7 @@ const SalesReportView = ({ mode = 'TOTAL', onBack }) => {
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <h2 style={{ fontSize: '16px', fontWeight: '700', margin: 0, color: 'black' }}>
-                    {mode === 'TOTAL' ? 'Consolidated Order History' : mode === 'CASHIER' ? 'Cashier POS Order History' : 'Mobile App Order History'}
+                    {mode === 'TOTAL' ? 'Consolidated Order History' : mode === 'CASHIER' ? 'Cashier POS Order History' : mode === 'AC' ? 'AC Bills Order History' : 'Mobile App Order History'}
                   </h2>
                   <span style={{
                     fontSize: '11px',
@@ -826,7 +938,9 @@ const SalesReportView = ({ mode = 'TOTAL', onBack }) => {
                 </div>
                 <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
                   {mode === 'TOTAL' 
-                    ? 'All orders across Cashier and Mobile App with (C) and (M) source identification'
+                    ? 'All orders across Cashier and Mobile App with (C), (M) and (AC) source identification'
+                    : mode === 'AC'
+                    ? 'Detailed record of bills placed in AC section'
                     : mode === 'CASHIER'
                     ? 'Detailed record of POS counter orders created by Cashier'
                     : 'Customer mobile orders placed through mobile ordering application'}
@@ -891,6 +1005,29 @@ const SalesReportView = ({ mode = 'TOTAL', onBack }) => {
                     <option value="ALL">All Sources (C + M)</option>
                     <option value="CASHIER">(C) Cashier Only</option>
                     <option value="MOBILE">(M) Mobile App Only</option>
+                  </select>
+                )}
+
+                {/* AC Section Filter (Only in non-AC modes) */}
+                {mode !== 'AC' && (
+                  <select
+                    id="report-ac-filter"
+                    value={acFilter}
+                    onChange={(e) => setAcFilter(e.target.value)}
+                    style={{
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      border: '1px solid #bfdbfe',
+                      background: '#eff6ff',
+                      fontSize: '12px',
+                      fontWeight: '700',
+                      color: '#1d4ed8',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <option value="ALL">All Sections (AC + Non-AC)</option>
+                    <option value="AC">(AC) AC Bills Only</option>
+                    <option value="NON_AC">Non-AC Only</option>
                   </select>
                 )}
 
@@ -1012,7 +1149,10 @@ const SalesReportView = ({ mode = 'TOTAL', onBack }) => {
 
                       {/* Source: (C) or (M) */}
                       <td style={{ padding: '14px 18px' }}>
-                        {getSourceBadge(order)}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                          {getSourceBadge(order)}
+                          {getAcBadge(order)}
+                        </div>
                       </td>
 
                       {/* Customer Name */}
@@ -1149,11 +1289,12 @@ const SalesReportView = ({ mode = 'TOTAL', onBack }) => {
               alignItems: 'center',
               justifyContent: 'space-between'
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                 <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '800' }}>
                   Order #{selectedOrder.order_id || selectedOrder.id}
                 </h3>
                 {getSourceBadge(selectedOrder)}
+                {getAcBadge(selectedOrder)}
               </div>
               <button
                 onClick={() => setSelectedOrder(null)}
@@ -1303,6 +1444,13 @@ const SalesReportView = ({ mode = 'TOTAL', onBack }) => {
               <div style={{ fontSize: '10px', marginTop: '4px', color: '#333' }}>
                 <div>(C) Cashier Sales: ₹{(reportData?.cashier_sales || 0).toFixed(2)}</div>
                 <div>(M) Mobile Sales : ₹{(reportData?.mobile_sales || 0).toFixed(2)}</div>
+                <div>(AC) AC Sales    : ₹{(reportData?.ac_sales || 0).toFixed(2)}</div>
+                <div>Non-AC Sales     : ₹{(reportData?.non_ac_sales || 0).toFixed(2)}</div>
+              </div>
+            )}
+            {mode === 'AC' && (
+              <div style={{ fontSize: '10px', marginTop: '4px', color: '#333' }}>
+                <div>(AC) AC Bills Count: {reportData?.total_orders || 0}</div>
               </div>
             )}
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginTop: '4px' }}>

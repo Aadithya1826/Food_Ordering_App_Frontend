@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import MobileAppSalesReport from './MobileAppSalesReport';
 import CashierSalesReport from './CashierSalesReport';
 import TotalSalesReport from './TotalSalesReport';
+import ACSalesReport from './ACSalesReport';
 import {
   TrendingUp,
   CreditCard,
@@ -13,7 +14,8 @@ import {
   ArrowDownRight,
   Printer,
   Smartphone,
-  Receipt
+  Receipt,
+  Wind
 } from 'lucide-react';
 import { reportsService } from '../services/api';
 import ReportView from './ReportView';
@@ -31,7 +33,7 @@ const ReportsManagement = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [reportPrintType, setReportPrintType] = useState(null);
-  const [activeSalesReport, setActiveSalesReport] = useState(null); // 'mobile' | 'cashier' | 'total'
+  const [activeSalesReport, setActiveSalesReport] = useState(null); // 'mobile' | 'cashier' | 'total' | 'ac'
 
   useEffect(() => {
     const fetchReports = async () => {
@@ -125,6 +127,14 @@ const ReportsManagement = () => {
     return (
       <div className="page-container admin-page-mobile-wrapper" style={{ maxWidth: '1400px', margin: '0 auto' }}>
         <TotalSalesReport onBack={() => setActiveSalesReport(null)} />
+      </div>
+    );
+  }
+
+  if (activeSalesReport === 'ac') {
+    return (
+      <div className="page-container admin-page-mobile-wrapper" style={{ maxWidth: '1400px', margin: '0 auto' }}>
+        <ACSalesReport onBack={() => setActiveSalesReport(null)} />
       </div>
     );
   }
@@ -246,6 +256,26 @@ const ReportsManagement = () => {
             }}
           >
             <TrendingUp size={16} color="#38bdf8" /> Total Sales (All C & M)
+          </button>
+          <button
+            id="ac-sales-report-btn"
+            onClick={() => setActiveSalesReport('ac')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '10px 16px',
+              borderRadius: '8px',
+              background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+              color: 'white',
+              border: 'none',
+              cursor: 'pointer',
+              fontWeight: '600',
+              boxShadow: '0 2px 8px rgba(2, 132, 199, 0.25)',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            <Wind size={16} /> AC Bill Report
           </button>
           <button
             id="cashier-sales-report-btn"

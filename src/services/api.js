@@ -414,6 +414,10 @@ export const reportsService = {
     const response = await api.get('/api/v1/reports/total-sales', { params });
     return response.data;
   },
+  getACReport: async (params = {}) => {
+    const response = await api.get('/api/v1/reports/ac-bills', { params });
+    return response.data;
+  },
 };
 
 export const recipeService = {

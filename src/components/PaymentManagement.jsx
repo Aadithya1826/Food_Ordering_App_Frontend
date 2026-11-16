@@ -164,7 +164,7 @@ const PaymentManagement = () => {
                   const isPaid = order.payment_status?.toLowerCase() === 'paid';
                   const isPending = order.payment_status?.toLowerCase() === 'pending';
                   const isFailed = order.payment_status?.toLowerCase() === 'failed';
-                  const isCashier = order.order_source === 'CASHIER_POS' || Boolean(order.user_id);
+                  const isCashier = ['PC_CASHIER', 'CASHIER_MOBILE', 'CASHIER_POS'].includes(order.order_source) || Boolean(order.user_id);
                   const sourceBadge = isCashier ? '(C)' : '(M)';
                   const sourceLabel = isCashier ? 'Cashier POS Order' : 'Mobile App Order';
 

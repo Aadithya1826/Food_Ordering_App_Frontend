@@ -97,6 +97,9 @@ function CashierDashboard() {
       if (type === 'hourly') {
         const res = await api.get(`/api/v1/reports/hourly?${params}`);
         data = res.data;
+      } else if (type === 'ac') {
+        const res = await api.get(`/api/v1/reports/ac-bills?${params}`);
+        data = res.data;
       } else {
         const res = await api.get(`/api/v1/reports/items?${params}`);
         data = res.data;
@@ -110,6 +113,26 @@ function CashierDashboard() {
             <span>${Math.round(t.sales)}</span>
           </div>
         `).join('');
+      } else if (type === 'ac') {
+        if (data.items && data.items.length > 0) {
+          tableRows = (data.items || []).map(item => `
+            <div class="item-row">
+              <span class="item-name">${item.name}</span>
+              <span class="item-qty">${item.qty.toFixed(2)}</span>
+              <span class="item-amt">${item.amount.toFixed(2)}</span>
+            </div>
+          `).join('');
+        } else if (data.orders && data.orders.length > 0) {
+          tableRows = (data.orders || []).map(o => `
+            <div class="item-row">
+              <span class="item-name">#${o.bill_no || o.id} ${o.customer_name || ''}</span>
+              <span class="item-qty">${o.time || ''}</span>
+              <span class="item-amt">${Number(o.total_amount).toFixed(2)}</span>
+            </div>
+          `).join('');
+        } else {
+          tableRows = `<div class="row" style="justify-content: center; padding: 10px 0;"><span>No AC bills recorded today</span></div>`;
+        }
       } else {
         tableRows = (data.items || []).map(item => `
           <div class="item-row">
@@ -122,8 +145,8 @@ function CashierDashboard() {
 
       const itemHeader = type === 'hourly' ? '' : `
         <div class="item-row" style="border-bottom: 1px dashed #000; border-top: 1px dashed #000; padding: 5px 0; margin-bottom: 5px; font-weight: bold;">
-          <span class="item-name">Item Name</span>
-          <span class="item-qty">Qty</span>
+          <span class="item-name">${type === 'ac' && (!data.items || data.items.length === 0) ? 'Bill / Customer' : 'Item Name'}</span>
+          <span class="item-qty">${type === 'ac' && (!data.items || data.items.length === 0) ? 'Time' : 'Qty'}</span>
           <span class="item-amt">Amount</span>
         </div>
       `;
@@ -151,13 +174,13 @@ function CashierDashboard() {
               <h1>${(data.restaurant && data.restaurant.name) || 'DATAUDIPI HOTEL'}</h1>
               <p>${(data.restaurant && data.restaurant.address) || 'MUGALIVAKKAM, CHENNAI'}</p>
               <p>PH:${(data.restaurant && data.restaurant.phone) || '9597066563'} GSTIN: ${(data.restaurant && data.restaurant.gstin) || '33ADLPV4810B3ZQ'}</p>
-              <h2 style="font-size: 14px; margin: 10px 0 5px 0;">${type === 'hourly' ? 'HOURLY REPORT' : 'ITEM WISE REPORT'}</h2>
+              <h2 style="font-size: 14px; margin: 10px 0 5px 0;">${type === 'hourly' ? 'HOURLY REPORT' : type === 'ac' ? 'AC BILL REPORT' : 'ITEM WISE REPORT'}</h2>
               <div style="text-align: left; margin-top: 10px;">
                 ${type === 'hourly' 
                   ? `<p>Date: ${data.date}</p>` 
                   : `<p>Print Date: ${data.date}</p><p>Bills From: ${data.date}</p><p>To: ${data.date}</p>`}
-                <p>Starting BillNo: ${(data.starting_bill && data.starting_bill.no) || '-'} - ${(data.starting_bill && data.starting_bill.time) || '-'}</p>
-                <p>Ending BillNo: ${(data.ending_bill && data.ending_bill.no) || '-'} - ${(data.ending_bill && data.ending_bill.time) || '-'}</p>
+                <p>Starting BillNo: ${(data.starting_bill && data.starting_bill.no) || (data.starting_order && data.starting_order.id) || '-'} - ${(data.starting_bill && data.starting_bill.time) || (data.starting_order && data.starting_order.time) || '-'}</p>
+                <p>Ending BillNo: ${(data.ending_bill && data.ending_bill.no) || (data.ending_order && data.ending_order.id) || '-'} - ${(data.ending_bill && data.ending_bill.time) || (data.ending_order && data.ending_order.time) || '-'}</p>
               </div>
             </div>
             
@@ -165,8 +188,8 @@ function CashierDashboard() {
             ${tableRows}
             
             <div class="total-row">
-              <span>TOTAL SALES</span>
-              <span>${data.total_sales ? data.total_sales.toFixed(2) : '0.00'}</span>
+              <span>${type === 'ac' ? 'TOTAL AC SALES' : 'TOTAL SALES'}</span>
+              <span>${data.total_sales ? data.total_sales.toFixed(2) : (data.ac_sales ? data.ac_sales.toFixed(2) : '0.00')}</span>
             </div>
           </body>
         </html>
@@ -335,7 +358,8 @@ function CashierDashboard() {
 
     const payload = {
       table_number: orderType === 'take-away' ? 'takeaway' : orderType === 'delivery' ? 'N/A' : '1', // Default to 1 for dine-in if not provided
-      order_type: orderType === 'take-away' ? 'Takeaway' : orderType === 'delivery' ? 'Delivery' : 'Dine-in',
+      order_type: orderType === 'take-away' ? 'Takeaway' : orderType === 'delivery' ? 'Delivery' : orderType === 'dine-in-ac' ? 'AC_DINE_IN' : 'Dine-in',
+      is_ac: orderType === 'dine-in-ac',
       payment_method: paymentMethod,
       cart: cart.map(c => ({ id: c.id, quantity: c.qty, price: c.rate })),
       subtotal: totalAmt,
@@ -477,7 +501,7 @@ function CashierDashboard() {
             <span>${currentDate}</span>
           </div>
           <div>
-            <span class="bold">Mode: </span>${orderType === 'take-away' ? 'Take Away' : orderType === 'delivery' ? 'Delivery' : 'Dine In'} | 
+            <span class="bold">Mode: </span>${orderType === 'take-away' ? 'Take Away' : orderType === 'delivery' ? 'Delivery' : orderType === 'dine-in-ac' ? 'AC Dine In' : 'Dine In'} | 
             <span class="bold">Pay: </span>${paymentMethod || 'Cash'}
           </div>
           ${futureSale.name ? `<div>Future Sale: ${futureSale.name}</div>` : ''}
@@ -529,13 +553,16 @@ function CashierDashboard() {
       const isInputFocused = e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA';
       const isProductCodeInput = e.target.id === 'product-code-input';
 
-      // Order Type Shortcuts (Alt+7 / Alt+4 / Alt+8)
+      // Order Type Shortcuts (Alt+7 / Alt+4 / Alt+5 / Alt+8)
       if (e.key === '7' && e.altKey) {
         e.preventDefault();
         setOrderType('take-away');
       } else if (e.key === '4' && e.altKey) {
         e.preventDefault();
         setOrderType('dine-in');
+      } else if ((e.key === '5' || e.key.toLowerCase() === 'a') && e.altKey) {
+        e.preventDefault();
+        setOrderType('dine-in-ac');
       } else if (e.key === '8' && e.altKey) {
         e.preventDefault();
         setOrderType('delivery');
@@ -790,10 +817,27 @@ function CashierDashboard() {
             >
               <option value="take-away">[7] Take Away</option>
               <option value="dine-in">[4] Dine In</option>
+              <option value="dine-in-ac">[5] AC Dine In</option>
               <option value="delivery">[8] Delivery</option>
             </select>
             <button onClick={() => handlePrintReport('hourly')} style={{ padding: '8px 16px', background: '#f1f5f9', color: '#334155', border: '1px solid #e2e8f0', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Hourly Report</button>
             <button onClick={() => handlePrintReport('items')} style={{ padding: '8px 16px', background: '#f1f5f9', color: '#334155', border: '1px solid #e2e8f0', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Item Report</button>
+            <button
+              id="ac-bill-report-btn"
+              onClick={() => handlePrintReport('ac')}
+              style={{
+                padding: '8px 16px',
+                background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                boxShadow: '0 2px 6px rgba(2, 132, 199, 0.3)'
+              }}
+            >
+              AC Bill Report
+            </button>
             <button onClick={handlePrintItemCodes} style={{ padding: '8px 16px', background: '#f1f5f9', color: '#334155', border: '1px solid #e2e8f0', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Item Code</button>
             <button onClick={() => setShowOrderHistory(true)} style={{ padding: '8px 16px', background: '#f1f5f9', color: '#334155', border: '1px solid #e2e8f0', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Orders</button>
           </div>
